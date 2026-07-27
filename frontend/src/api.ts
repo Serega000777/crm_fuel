@@ -29,6 +29,23 @@ export type Operation = {
   reversal_of_id: string | null;
   created_at: string;
 };
+export type PurchaseAnalysis = {
+  fuel_cost_kopecks: number;
+  additional_cost_kopecks: number;
+  landed_cost_kopecks: number;
+  batch_cost_per_liter_kopecks: number;
+  projected_average_cost_kopecks: number;
+  sale_price_kopecks: number;
+  projected_margin_per_liter_kopecks: number;
+  projected_margin_basis_points: number;
+  profitable: boolean;
+  analysis_source: "local_rules";
+  advisory: {
+    summary: string;
+    risks: string[];
+    recommendation: string;
+  };
+};
 const base = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const initData = window.Telegram?.WebApp?.initData;
 const authHeaders = (): Record<string, string> =>
@@ -65,6 +82,11 @@ export const api = {
     request("/api/v1/purchases", {
       method: "POST",
       headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify(payload),
+    }),
+  analyzePurchase: (payload: object) =>
+    request<PurchaseAnalysis>("/api/v1/purchases/analyze", {
+      method: "POST",
       body: JSON.stringify(payload),
     }),
   sale: (payload: object) =>

@@ -8,6 +8,8 @@ purchases, sales, expenses, collections, reversals, operation history, stock,
 weighted cost, ledger, automated tests and Docker.
 Completed full code/database/security audit, deterministic migrations, balanced
 ledger, request-bound idempotency, concurrency locks and container hardening.
+Added local purchase intelligence with delivery/other costs, landed cost per
+liter, projected weighted average, margin and rule-based recommendations.
 ## In progress
 Review of audit fixes in Draft PR.
 ## Blocked
@@ -26,5 +28,5 @@ Target repository is `Serega000777/crm_fuel`; initial fuels are configurable rec
 ## Latest PR
 Draft PR #1: https://github.com/Serega000777/crm_fuel/pull/1
 ## Last successful checks
-2026-07-27: Ruff, mypy, 12 pytest tests, Alembic upgrade/downgrade, ESLint,
+2026-07-27: Ruff, mypy, 14 pytest tests, Alembic upgrade/downgrade, ESLint,
 TypeScript/Vite production build, pip-audit, full npm audit and Compose config.

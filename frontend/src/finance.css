@@ -121,3 +121,75 @@
 .empty h3 {
   color: #e5e7eb;
 }
+.costGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+}
+.analysisButton {
+  background: #172554;
+  border: 1px solid #3b82f6;
+  border-radius: 12px;
+  color: #bfdbfe;
+  font-weight: 700;
+  margin-top: 10px;
+  padding: 12px;
+  width: 100%;
+}
+.analysisButton:disabled {
+  opacity: 0.4;
+}
+.analysisCard {
+  background: #0b1220;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  margin-top: 14px;
+  padding: 14px;
+}
+.analysisCard.positive {
+  border-color: #166534;
+}
+.analysisCard.negative {
+  border-color: #991b1b;
+}
+.analysisCard > span {
+  color: #60a5fa;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.analysisCard h3 {
+  font-size: 15px;
+  margin: 7px 0 12px;
+}
+.analysisCard dl {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+}
+.analysisCard dl div {
+  background: #111a2a;
+  border-radius: 10px;
+  padding: 9px;
+}
+.analysisCard dt {
+  color: var(--muted);
+  font-size: 10px;
+}
+.analysisCard dd {
+  font-size: 13px;
+  font-weight: 800;
+  margin: 4px 0 0;
+}
+.analysisCard ul {
+  color: #cbd5e1;
+  font-size: 11px;
+  padding-left: 18px;
+}
+.analysisCard p {
+  color: #93c5fd;
+  font-size: 12px;
+  margin: 10px 0 0;
+}

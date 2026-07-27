@@ -18,11 +18,14 @@ from app.schemas import (
     FuelOut,
     OperationOut,
     PriceIn,
+    PurchaseAnalysisIn,
+    PurchaseAnalysisOut,
     PurchaseIn,
     ReversalIn,
     SaleIn,
 )
 from app.service import (
+    analyze_purchase,
     collect,
     dashboard,
     expense,
@@ -119,6 +122,15 @@ def create_purchase(
     db: Session = Depends(get_db),
 ):
     return purchase(db, data, idempotency_key, user_id)
+
+
+@app.post("/api/v1/purchases/analyze", response_model=PurchaseAnalysisOut)
+def get_purchase_analysis(
+    data: PurchaseAnalysisIn,
+    user_id: int = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    return analyze_purchase(db, data, user_id)
 
 
 @app.post("/api/v1/sales", response_model=OperationOut)

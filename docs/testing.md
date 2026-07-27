@@ -8,6 +8,8 @@ Unit test проверяет единое округление. Интеграц
 Security-набор проверяет Telegram HMAC/freshness, production fail-closed config,
 RBAC, привязку idempotency к payload, запрет перерасхода кассы и HTTP headers.
 Отдельный инвариант требует нулевую сумму ledger-проводок каждой операции.
+Тесты анализа закупки проверяют включение доставки и прочих расходов в стоимость
+партии, средневзвешенную себестоимость и предупреждение об отрицательной марже.
 
 Команды: `pytest`, `ruff check .`, `mypy app`, `pip-audit`,
 `npm run lint`, `npm run build`, `npm audit`.

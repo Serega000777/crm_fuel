@@ -74,6 +74,7 @@ class Operation(Base):
     unit_price_kopecks: Mapped[int | None] = mapped_column(BigInteger)
     total_kopecks: Mapped[int] = mapped_column(BigInteger)
     cost_kopecks: Mapped[int] = mapped_column(BigInteger, default=0)
+    additional_cost_kopecks: Mapped[int] = mapped_column(BigInteger, default=0)
     payment_method: Mapped[PaymentMethod | None] = mapped_column(Enum(PaymentMethod))
     description: Mapped[str | None] = mapped_column(String(240))
     reversal_of_id: Mapped[str | None] = mapped_column(

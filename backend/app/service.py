@@ -8,7 +8,14 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import Fuel, LedgerEntry, Operation, OperationType, PaymentMethod, Role, User
-from app.schemas import CollectionIn, ExpenseIn, PurchaseIn, ReversalIn, SaleIn
+from app.schemas import (
+    CollectionIn,
+    ExpenseIn,
+    PurchaseAnalysisIn,
+    PurchaseIn,
+    ReversalIn,
+    SaleIn,
+)
 
 
 def money(liters: Decimal, unit_price_kopecks: int) -> int:
@@ -89,14 +96,17 @@ def purchase(db: Session, data: PurchaseIn, key: str, user_id: int) -> Operation
         raise HTTPException(404, "Fuel not found")
     old_stock = Decimal(fuel.stock_liters)
     new_stock = old_stock + data.liters
-    total = money(data.liters, data.unit_price_kopecks)
+    fuel_cost = money(data.liters, data.unit_price_kopecks)
+    additional_cost = data.delivery_cost_kopecks + data.other_cost_kopecks
+    total = fuel_cost + additional_cost
     weighted = money(old_stock, fuel.average_cost_kopecks) + total
     fuel.stock_liters = new_stock
     fuel.average_cost_kopecks = int((Decimal(weighted) / new_stock).quantize(Decimal(1), rounding=ROUND_HALF_UP))
     fuel.last_purchase_price_kopecks = data.unit_price_kopecks
     op = Operation(type=OperationType.purchase, fuel_id=fuel.id, liters=data.liters,
                    unit_price_kopecks=data.unit_price_kopecks, total_kopecks=total,
-                   cost_kopecks=total, payment_method=data.payment_method,
+                   cost_kopecks=total, additional_cost_kopecks=additional_cost,
+                   payment_method=data.payment_method,
                    idempotency_key=key, request_hash=fingerprint, created_by=user_id)
     db.add(op)
     db.flush()
@@ -112,6 +122,91 @@ def purchase(db: Session, data: PurchaseIn, key: str, user_id: int) -> Operation
     )
     db.commit()
     return op
+
+
+def analyze_purchase(db: Session, data: PurchaseAnalysisIn, user_id: int) -> dict:
+    require_roles(db, user_id, Role.owner)
+    fuel = db.get(Fuel, data.fuel_id)
+    if not fuel:
+        raise HTTPException(404, "Fuel not found")
+    fuel_cost = money(data.liters, data.unit_price_kopecks)
+    additional_cost = data.delivery_cost_kopecks + data.other_cost_kopecks
+    landed_cost = fuel_cost + additional_cost
+    batch_cost_per_liter = int(
+        (Decimal(landed_cost) / data.liters).quantize(
+            Decimal(1), rounding=ROUND_HALF_UP
+        )
+    )
+    current_stock = Decimal(fuel.stock_liters)
+    projected_stock = current_stock + data.liters
+    projected_inventory_value = (
+        money(current_stock, fuel.average_cost_kopecks) + landed_cost
+    )
+    projected_average = int(
+        (Decimal(projected_inventory_value) / projected_stock).quantize(
+            Decimal(1), rounding=ROUND_HALF_UP
+        )
+    )
+    margin = fuel.sale_price_kopecks - projected_average
+    margin_basis_points = (
+        0
+        if fuel.sale_price_kopecks <= 0
+        else int(
+            (Decimal(margin) * Decimal(10_000) / fuel.sale_price_kopecks).quantize(
+                Decimal(1), rounding=ROUND_HALF_UP
+            )
+        )
+    )
+    facts: dict[str, int | bool | str] = {
+        "fuel": fuel.name,
+        "liters": str(data.liters),
+        "fuel_cost_kopecks": fuel_cost,
+        "additional_cost_kopecks": additional_cost,
+        "landed_cost_kopecks": landed_cost,
+        "batch_cost_per_liter_kopecks": batch_cost_per_liter,
+        "projected_average_cost_kopecks": projected_average,
+        "sale_price_kopecks": fuel.sale_price_kopecks,
+        "projected_margin_per_liter_kopecks": margin,
+        "projected_margin_basis_points": margin_basis_points,
+        "profitable": margin > 0,
+    }
+    additional_share = (
+        Decimal(additional_cost) * Decimal(10_000) / landed_cost
+        if landed_cost
+        else Decimal(0)
+    )
+    risks: list[str] = []
+    if fuel.sale_price_kopecks <= 0:
+        risks.append("Сначала установите цену продажи.")
+    if margin <= 0:
+        risks.append("Цена продажи не покрывает прогнозную себестоимость.")
+    elif margin_basis_points < 1_000:
+        risks.append("Расчётная маржа ниже 10% и чувствительна к новым расходам.")
+    if additional_share >= 1_000:
+        risks.append("Доставка и прочие расходы превышают 10% стоимости партии.")
+    if not risks:
+        risks.append("Существенных рисков по введённым данным не обнаружено.")
+    if margin <= 0:
+        recommendation = (
+            "Не проводите закупку до снижения закупочной цены или повышения цены продажи."
+        )
+        summary = "Закупка убыточна по текущим вводным."
+    elif margin_basis_points < 1_500:
+        recommendation = (
+            "Закупку можно рассматривать только после проверки всех скрытых расходов."
+        )
+        summary = "Закупка имеет небольшую расчётную маржу."
+    else:
+        recommendation = (
+            "Маржа приемлемая; зафиксируйте расходы документами и проверьте объём при приёмке."
+        )
+        summary = "Закупка имеет положительную расчётную маржу."
+    advisory = {
+        "summary": summary,
+        "risks": risks[:4],
+        "recommendation": recommendation,
+    }
+    return {**facts, "analysis_source": "local_rules", "advisory": advisory}
 
 
 def sale(db: Session, data: SaleIn, key: str, user_id: int) -> Operation:

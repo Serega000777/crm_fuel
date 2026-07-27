@@ -12,7 +12,14 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
-import { api, parseKopecks, type Dashboard, type Fuel, type Operation } from "./api";
+import {
+  api,
+  parseKopecks,
+  type Dashboard,
+  type Fuel,
+  type Operation,
+  type PurchaseAnalysis,
+} from "./api";
 
 const rub = (value: number) =>
   new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" }).format(value / 100);
@@ -35,6 +42,9 @@ function FuelSheet({
       mode === "price" ? (fuel.sale_price_kopecks / 100).toString() : "",
     ),
     [payment, setPayment] = useState("cash"),
+    [delivery, setDelivery] = useState("0"),
+    [otherCosts, setOtherCosts] = useState("0"),
+    [analysis, setAnalysis] = useState<PurchaseAnalysis | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const title =
@@ -50,6 +60,8 @@ function FuelSheet({
           fuel_id: fuel.id,
           liters,
           unit_price_kopecks: parseKopecks(price),
+          delivery_cost_kopecks: parseKopecks(delivery),
+          other_cost_kopecks: parseKopecks(otherCosts),
           payment_method: payment,
         });
       else await api.sale({ fuel_id: fuel.id, liters, payment_method: payment });
@@ -57,6 +69,25 @@ function FuelSheet({
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function runAnalysis() {
+    setBusy(true);
+    setError("");
+    try {
+      setAnalysis(
+        await api.analyzePurchase({
+          fuel_id: fuel.id,
+          liters,
+          unit_price_kopecks: parseKopecks(price),
+          delivery_cost_kopecks: parseKopecks(delivery),
+          other_cost_kopecks: parseKopecks(otherCosts),
+        }),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось выполнить анализ");
     } finally {
       setBusy(false);
     }
@@ -82,7 +113,10 @@ function FuelSheet({
               min=".001"
               step=".001"
               value={liters}
-              onChange={(e) => setLiters(e.target.value.replace(",", "."))}
+              onChange={(e) => {
+                setLiters(e.target.value.replace(",", "."));
+                setAnalysis(null);
+              }}
             />
           </label>
         )}
@@ -95,9 +129,42 @@ function FuelSheet({
               min=".01"
               step=".01"
               value={price}
-              onChange={(e) => setPrice(e.target.value.replace(",", "."))}
+              onChange={(e) => {
+                setPrice(e.target.value.replace(",", "."));
+                setAnalysis(null);
+              }}
             />
           </label>
+        )}
+        {mode === "purchase" && (
+          <div className="costGrid">
+            <label>
+              Доставка, ₽
+              <input
+                inputMode="decimal"
+                min="0"
+                step=".01"
+                value={delivery}
+                onChange={(e) => {
+                  setDelivery(e.target.value.replace(",", "."));
+                  setAnalysis(null);
+                }}
+              />
+            </label>
+            <label>
+              Прочие расходы, ₽
+              <input
+                inputMode="decimal"
+                min="0"
+                step=".01"
+                value={otherCosts}
+                onChange={(e) => {
+                  setOtherCosts(e.target.value.replace(",", "."));
+                  setAnalysis(null);
+                }}
+              />
+            </label>
+          </div>
         )}
         {mode !== "price" && (
           <label>
@@ -113,6 +180,46 @@ function FuelSheet({
           <div className="total">
             Итого <strong>{liters ? rub(Number(liters) * fuel.sale_price_kopecks) : "—"}</strong>
           </div>
+        )}
+        {mode === "purchase" && (
+          <button
+            type="button"
+            className="analysisButton"
+            disabled={busy || !liters || !price}
+            onClick={() => void runAnalysis()}
+          >
+            Рассчитать умную себестоимость
+          </button>
+        )}
+        {analysis && (
+          <section className={`analysisCard ${analysis.profitable ? "positive" : "negative"}`}>
+            <span>Умный анализ закупки</span>
+            <h3>{analysis.advisory.summary}</h3>
+            <dl>
+              <div>
+                <dt>Полная стоимость</dt>
+                <dd>{rub(analysis.landed_cost_kopecks)}</dd>
+              </div>
+              <div>
+                <dt>Партия, за литр</dt>
+                <dd>{rub(analysis.batch_cost_per_liter_kopecks)}</dd>
+              </div>
+              <div>
+                <dt>Новая средняя</dt>
+                <dd>{rub(analysis.projected_average_cost_kopecks)}</dd>
+              </div>
+              <div>
+                <dt>Маржа с литра</dt>
+                <dd>{rub(analysis.projected_margin_per_liter_kopecks)}</dd>
+              </div>
+            </dl>
+            <ul>
+              {analysis.advisory.risks.map((risk) => (
+                <li key={risk}>{risk}</li>
+              ))}
+            </ul>
+            <p>{analysis.advisory.recommendation}</p>
+          </section>
         )}
         {error && <div className="error">{error}</div>}
         <button className="primary" disabled={busy}>

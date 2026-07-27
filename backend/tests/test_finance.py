@@ -158,3 +158,69 @@ def test_every_posted_operation_has_balanced_ledger(client):
                 )
             )
             assert balance == 0
+
+
+def test_purchase_analysis_includes_direct_expenses(client):
+    headers = {"X-Dev-User": "1"}
+    fuel = client.get("/api/v1/fuels", headers=headers).json()[0]
+    client.patch(
+        f"/api/v1/fuels/{fuel['id']}/price",
+        json={"sale_price_kopecks": 6500},
+        headers=headers,
+    )
+    payload = {
+        "fuel_id": fuel["id"],
+        "liters": "100",
+        "unit_price_kopecks": 5000,
+        "delivery_cost_kopecks": 10000,
+        "other_cost_kopecks": 5000,
+    }
+    analysis = client.post(
+        "/api/v1/purchases/analyze", json=payload, headers=headers
+    )
+    assert analysis.status_code == 200
+    result = analysis.json()
+    assert result["fuel_cost_kopecks"] == 500000
+    assert result["additional_cost_kopecks"] == 15000
+    assert result["landed_cost_kopecks"] == 515000
+    assert result["batch_cost_per_liter_kopecks"] == 5150
+    assert result["projected_average_cost_kopecks"] == 5150
+    assert result["projected_margin_per_liter_kopecks"] == 1350
+    assert result["projected_margin_basis_points"] == 2077
+    assert result["analysis_source"] == "local_rules"
+    assert result["profitable"] is True
+
+    purchase = client.post(
+        "/api/v1/purchases",
+        json={**payload, "payment_method": "transfer"},
+        headers={**headers, "Idempotency-Key": "landed-cost-purchase"},
+    )
+    assert purchase.status_code == 200
+    assert purchase.json()["total_kopecks"] == 515000
+    assert purchase.json()["additional_cost_kopecks"] == 15000
+    dashboard = client.get("/api/v1/dashboard", headers=headers).json()
+    assert dashboard["fuels"][0]["average_cost_kopecks"] == 5150
+
+
+def test_purchase_analysis_warns_when_margin_is_negative(client):
+    headers = {"X-Dev-User": "1"}
+    fuel = client.get("/api/v1/fuels", headers=headers).json()[0]
+    client.patch(
+        f"/api/v1/fuels/{fuel['id']}/price",
+        json={"sale_price_kopecks": 5000},
+        headers=headers,
+    )
+    result = client.post(
+        "/api/v1/purchases/analyze",
+        json={
+            "fuel_id": fuel["id"],
+            "liters": "10",
+            "unit_price_kopecks": 5000,
+            "delivery_cost_kopecks": 1000,
+            "other_cost_kopecks": 0,
+        },
+        headers=headers,
+    ).json()
+    assert result["profitable"] is False
+    assert result["projected_margin_per_liter_kopecks"] == -100
+    assert "убыточна" in result["advisory"]["summary"].lower()

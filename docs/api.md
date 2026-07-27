@@ -6,6 +6,8 @@
 - `GET /api/v1/fuels` — справочник топлива.
 - `PATCH /api/v1/fuels/{id}/price` — цена продажи.
 - `POST /api/v1/purchases` — закупка.
+- `POST /api/v1/purchases/analyze` — локальный анализ полной себестоимости,
+  будущей средней цены и маржи без создания операции.
 - `POST /api/v1/sales` — продажа.
 - `POST /api/v1/expenses` — расход.
 - `POST /api/v1/collections` — частичная или полная инкассация наличности.
