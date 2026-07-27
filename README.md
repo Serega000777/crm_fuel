@@ -35,4 +35,5 @@ npm run dev
 ```
 
 Подробнее: [архитектура](docs/architecture.md), [финансовая модель](docs/financial-model.md)
-и [статус проекта](docs/project-status.md).
+и [статус проекта](docs/project-status.md). Результаты последнего code/database/
+security review находятся в [отчёте аудита](docs/security-audit.md).
