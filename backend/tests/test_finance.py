@@ -1,5 +1,9 @@
 from decimal import Decimal
 
+from sqlalchemy import func, select
+
+from app.db import SessionLocal
+from app.models import LedgerEntry
 from app.service import money
 
 
@@ -10,13 +14,13 @@ def test_purchase_sale_and_idempotency(client):
     headers = {"X-Dev-User": "1"}
     fuel = client.get("/api/v1/fuels", headers=headers).json()[0]
     purchase = {"fuel_id": fuel["id"], "liters": "100.000", "unit_price_kopecks": 5000, "payment_method": "transfer"}
-    result = client.post("/api/v1/purchases", json=purchase, headers={**headers, "Idempotency-Key": "p-1"})
+    result = client.post("/api/v1/purchases", json=purchase, headers={**headers, "Idempotency-Key": "purchase-1"})
     assert result.status_code == 200
-    duplicate = client.post("/api/v1/purchases", json=purchase, headers={**headers, "Idempotency-Key": "p-1"})
+    duplicate = client.post("/api/v1/purchases", json=purchase, headers={**headers, "Idempotency-Key": "purchase-1"})
     assert duplicate.json()["id"] == result.json()["id"]
     client.patch(f"/api/v1/fuels/{fuel['id']}/price", json={"sale_price_kopecks": 6500}, headers=headers)
     sold = client.post("/api/v1/sales", json={"fuel_id": fuel["id"], "liters": "10.000", "payment_method": "cash"},
-                       headers={**headers, "Idempotency-Key": "s-1"})
+                       headers={**headers, "Idempotency-Key": "sale-0001"})
     assert sold.json()["total_kopecks"] == 65000
     dashboard = client.get("/api/v1/dashboard", headers=headers).json()
     assert dashboard["revenue_kopecks"] == 65000
@@ -26,7 +30,7 @@ def test_purchase_sale_and_idempotency(client):
 def test_cannot_sell_more_than_stock(client):
     fuel = client.get("/api/v1/fuels", headers={"X-Dev-User": "1"}).json()[0]
     response = client.post("/api/v1/sales", json={"fuel_id": fuel["id"], "liters": "1", "payment_method": "cash"},
-                           headers={"X-Dev-User": "1", "Idempotency-Key": "s-no-stock"})
+                           headers={"X-Dev-User": "1", "Idempotency-Key": "sale-no-stock"})
     assert response.status_code == 409
 
 
@@ -121,3 +125,36 @@ def test_collection_can_take_full_available_cash(client):
     assert client.get("/api/v1/dashboard", headers=headers).json()[
         "cash_balance_kopecks"
     ] == 0
+
+
+def test_every_posted_operation_has_balanced_ledger(client):
+    headers = {"X-Dev-User": "1"}
+    fuel = client.get("/api/v1/fuels", headers=headers).json()[0]
+    purchase = client.post(
+        "/api/v1/purchases",
+        json={
+            "fuel_id": fuel["id"],
+            "liters": "10",
+            "unit_price_kopecks": 1000,
+            "payment_method": "transfer",
+        },
+        headers={**headers, "Idempotency-Key": "balanced-purchase"},
+    ).json()
+    client.patch(
+        f"/api/v1/fuels/{fuel['id']}/price",
+        json={"sale_price_kopecks": 2000},
+        headers=headers,
+    )
+    sale = client.post(
+        "/api/v1/sales",
+        json={"fuel_id": fuel["id"], "liters": "5", "payment_method": "cash"},
+        headers={**headers, "Idempotency-Key": "balanced-sale"},
+    ).json()
+    with SessionLocal() as db:
+        for operation_id in (purchase["id"], sale["id"]):
+            balance = db.scalar(
+                select(func.sum(LedgerEntry.amount_kopecks)).where(
+                    LedgerEntry.operation_id == operation_id
+                )
+            )
+            assert balance == 0

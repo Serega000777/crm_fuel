@@ -9,3 +9,7 @@ React Mini App обращается к REST API FastAPI. API проверяет 
 (`service`) и persistence (`models`, `db`). Это допускает последующую интеграцию
 с CRM Cement без копирования финансовых правил.
 
+PostgreSQL `FOR UPDATE` защищает остаток топлива от конкурентного списания.
+Transaction-scoped advisory locks сериализуют одинаковые idempotency key и
+операции одного ledger-счёта. Каждый запрос получает отдельную SQLAlchemy session
+с явным rollback при исключении.

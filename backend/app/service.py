@@ -1,9 +1,12 @@
+import hashlib
+import json
 from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.models import Fuel, LedgerEntry, Operation, OperationType, PaymentMethod, Role, User
 from app.schemas import CollectionIn, ExpenseIn, PurchaseIn, ReversalIn, SaleIn
 
@@ -15,28 +18,73 @@ def money(liters: Decimal, unit_price_kopecks: int) -> int:
 def ensure_user(db: Session, user_id: int) -> User:
     user = db.get(User, user_id)
     if not user:
-        user = User(id=user_id, name="Владелец", role="owner")
+        settings = get_settings()
+        if settings.app_env == "production" and user_id != settings.owner_telegram_id:
+            raise HTTPException(403, "User is not provisioned")
+        role = Role.owner if user_id in {settings.dev_user_id, settings.owner_telegram_id} else Role.operator
+        user = User(id=user_id, name="Telegram user", role=role)
         db.add(user)
         db.flush()
     return user
 
 
-def require_owner(db: Session, user_id: int) -> User:
+def require_roles(db: Session, user_id: int, *roles: Role) -> User:
     user = ensure_user(db, user_id)
-    if user.role != Role.owner:
-        raise HTTPException(403, "Owner role required")
+    if user.role not in roles:
+        raise HTTPException(403, "Insufficient permissions")
     return user
 
 
-def existing(db: Session, key: str) -> Operation | None:
-    return db.scalar(select(Operation).where(Operation.idempotency_key == key))
+def request_fingerprint(operation: str, payload: dict) -> str:
+    canonical = json.dumps(
+        {"operation": operation, "payload": payload},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def existing(db: Session, key: str, fingerprint: str) -> Operation | None:
+    operation = db.scalar(select(Operation).where(Operation.idempotency_key == key))
+    if operation and operation.request_hash != fingerprint:
+        raise HTTPException(409, "Idempotency key was already used for another request")
+    return operation
+
+
+def available_balance(db: Session, account: str) -> int:
+    return int(
+        db.scalar(
+            select(func.coalesce(func.sum(LedgerEntry.amount_kopecks), 0)).where(
+                LedgerEntry.account == account
+            )
+        )
+        or 0
+    )
+
+
+def transaction_lock(db: Session, namespace: str, value: str) -> None:
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
+        db.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:lock_key))"),
+            {"lock_key": f"crm-fuel:{namespace}:{value}"},
+        )
+
+
+def locked_fuel(db: Session, fuel_id: str) -> Fuel | None:
+    return db.scalar(
+        select(Fuel).where(Fuel.id == fuel_id).with_for_update()
+    )
 
 
 def purchase(db: Session, data: PurchaseIn, key: str, user_id: int) -> Operation:
-    if found := existing(db, key):
+    transaction_lock(db, "idempotency", key)
+    fingerprint = request_fingerprint("purchase", data.model_dump(mode="json"))
+    if found := existing(db, key, fingerprint):
         return found
-    ensure_user(db, user_id)
-    fuel = db.get(Fuel, data.fuel_id)
+    require_roles(db, user_id, Role.owner)
+    fuel = locked_fuel(db, data.fuel_id)
     if not fuel:
         raise HTTPException(404, "Fuel not found")
     old_stock = Decimal(fuel.stock_liters)
@@ -49,12 +97,13 @@ def purchase(db: Session, data: PurchaseIn, key: str, user_id: int) -> Operation
     op = Operation(type=OperationType.purchase, fuel_id=fuel.id, liters=data.liters,
                    unit_price_kopecks=data.unit_price_kopecks, total_kopecks=total,
                    cost_kopecks=total, payment_method=data.payment_method,
-                   idempotency_key=key, created_by=user_id)
+                   idempotency_key=key, request_hash=fingerprint, created_by=user_id)
     db.add(op)
     db.flush()
     payment_account = (
         "cash" if data.payment_method == PaymentMethod.cash else "bank"
     )
+    transaction_lock(db, "ledger", payment_account)
     db.add(LedgerEntry(operation_id=op.id, account="inventory", amount_kopecks=total))
     db.add(
         LedgerEntry(
@@ -66,27 +115,32 @@ def purchase(db: Session, data: PurchaseIn, key: str, user_id: int) -> Operation
 
 
 def sale(db: Session, data: SaleIn, key: str, user_id: int) -> Operation:
-    if found := existing(db, key):
+    transaction_lock(db, "idempotency", key)
+    fingerprint = request_fingerprint("sale", data.model_dump(mode="json"))
+    if found := existing(db, key, fingerprint):
         return found
-    ensure_user(db, user_id)
-    fuel = db.get(Fuel, data.fuel_id)
+    require_roles(db, user_id, Role.owner, Role.operator)
+    fuel = locked_fuel(db, data.fuel_id)
     if not fuel:
         raise HTTPException(404, "Fuel not found")
     if Decimal(fuel.stock_liters) < data.liters:
         raise HTTPException(409, "Insufficient fuel stock")
+    if fuel.sale_price_kopecks <= 0:
+        raise HTTPException(409, "Sale price is not configured")
     total = money(data.liters, fuel.sale_price_kopecks)
     cost = money(data.liters, fuel.average_cost_kopecks)
     fuel.stock_liters = Decimal(fuel.stock_liters) - data.liters
     op = Operation(type=OperationType.sale, fuel_id=fuel.id, liters=data.liters,
                    unit_price_kopecks=fuel.sale_price_kopecks, total_kopecks=total,
                    cost_kopecks=cost, payment_method=data.payment_method,
-                   idempotency_key=key, created_by=user_id)
+                   idempotency_key=key, request_hash=fingerprint, created_by=user_id)
     db.add(op)
     db.flush()
     account = "cash" if data.payment_method == PaymentMethod.cash else "bank"
+    transaction_lock(db, "ledger", account)
     db.add_all([
         LedgerEntry(operation_id=op.id, account=account, amount_kopecks=total),
-        LedgerEntry(operation_id=op.id, account="revenue", amount_kopecks=total),
+        LedgerEntry(operation_id=op.id, account="revenue", amount_kopecks=-total),
         LedgerEntry(operation_id=op.id, account="inventory", amount_kopecks=-cost),
         LedgerEntry(operation_id=op.id, account="cogs", amount_kopecks=cost),
     ])
@@ -95,9 +149,17 @@ def sale(db: Session, data: SaleIn, key: str, user_id: int) -> Operation:
 
 
 def expense(db: Session, data: ExpenseIn, key: str, user_id: int) -> Operation:
-    if found := existing(db, key):
+    transaction_lock(db, "idempotency", key)
+    fingerprint = request_fingerprint("expense", data.model_dump(mode="json"))
+    if found := existing(db, key, fingerprint):
         return found
-    ensure_user(db, user_id)
+    require_roles(db, user_id, Role.owner, Role.operator)
+    account = "cash" if data.payment_method == PaymentMethod.cash else "bank"
+    transaction_lock(db, "ledger", account)
+    if data.payment_method == PaymentMethod.cash and data.amount_kopecks > available_balance(
+        db, account
+    ):
+        raise HTTPException(409, "Expense exceeds available cash")
     op = Operation(
         type=OperationType.expense,
         total_kopecks=data.amount_kopecks,
@@ -105,11 +167,11 @@ def expense(db: Session, data: ExpenseIn, key: str, user_id: int) -> Operation:
         payment_method=data.payment_method,
         description=data.description,
         idempotency_key=key,
+        request_hash=fingerprint,
         created_by=user_id,
     )
     db.add(op)
     db.flush()
-    account = "cash" if data.payment_method == PaymentMethod.cash else "bank"
     db.add_all(
         [
             LedgerEntry(
@@ -125,17 +187,13 @@ def expense(db: Session, data: ExpenseIn, key: str, user_id: int) -> Operation:
 
 
 def collect(db: Session, data: CollectionIn, key: str, user_id: int) -> Operation:
-    if found := existing(db, key):
+    transaction_lock(db, "idempotency", key)
+    fingerprint = request_fingerprint("collection", data.model_dump(mode="json"))
+    if found := existing(db, key, fingerprint):
         return found
-    require_owner(db, user_id)
-    available = int(
-        db.scalar(
-            select(func.coalesce(func.sum(LedgerEntry.amount_kopecks), 0)).where(
-                LedgerEntry.account == "cash"
-            )
-        )
-        or 0
-    )
+    require_roles(db, user_id, Role.owner)
+    transaction_lock(db, "ledger", "cash")
+    available = available_balance(db, "cash")
     amount = data.amount_kopecks if data.amount_kopecks is not None else available
     if amount <= 0 or amount > available:
         raise HTTPException(409, "Collection exceeds available cash")
@@ -146,6 +204,7 @@ def collect(db: Session, data: CollectionIn, key: str, user_id: int) -> Operatio
         payment_method=PaymentMethod.cash,
         description=data.description,
         idempotency_key=key,
+        request_hash=fingerprint,
         created_by=user_id,
     )
     db.add(op)
@@ -163,10 +222,16 @@ def collect(db: Session, data: CollectionIn, key: str, user_id: int) -> Operatio
 def reverse(
     db: Session, operation_id: str, data: ReversalIn, key: str, user_id: int
 ) -> Operation:
-    if found := existing(db, key):
+    transaction_lock(db, "idempotency", key)
+    fingerprint = request_fingerprint(
+        "reversal", {"operation_id": operation_id, **data.model_dump(mode="json")}
+    )
+    if found := existing(db, key, fingerprint):
         return found
-    require_owner(db, user_id)
-    original = db.get(Operation, operation_id)
+    require_roles(db, user_id, Role.owner)
+    original = db.scalar(
+        select(Operation).where(Operation.id == operation_id).with_for_update()
+    )
     if not original:
         raise HTTPException(404, "Operation not found")
     if original.type == OperationType.reversal or original.reversal_of_id:
@@ -174,7 +239,7 @@ def reverse(
     if db.scalar(select(Operation.id).where(Operation.reversal_of_id == original.id)):
         raise HTTPException(409, "Operation is already reversed")
 
-    fuel = db.get(Fuel, original.fuel_id) if original.fuel_id else None
+    fuel = locked_fuel(db, original.fuel_id) if original.fuel_id else None
     liters = Decimal(original.liters or 0)
     if original.type == OperationType.purchase and fuel:
         new_stock = Decimal(fuel.stock_liters) - liters
@@ -218,6 +283,7 @@ def reverse(
         description=data.reason,
         reversal_of_id=original.id,
         idempotency_key=key,
+        request_hash=fingerprint,
         created_by=user_id,
     )
     db.add(op)
@@ -225,6 +291,8 @@ def reverse(
     entries = list(
         db.scalars(select(LedgerEntry).where(LedgerEntry.operation_id == original.id))
     )
+    for account in sorted({entry.account for entry in entries}):
+        transaction_lock(db, "ledger", account)
     db.add_all(
         [
             LedgerEntry(

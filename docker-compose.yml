@@ -28,6 +28,9 @@ services:
       - path: .env
         required: false
     ports: ["8000:8000"]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp"]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -36,7 +39,10 @@ services:
     build: ./frontend
     environment:
       VITE_API_URL: http://localhost:8000
-    ports: ["5173:80"]
+    ports: ["5173:8080"]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp", "/var/cache/nginx", "/var/run"]
     depends_on: [backend]
 
 volumes:

@@ -80,6 +80,7 @@ class Operation(Base):
         ForeignKey("operations.id"), unique=True
     )
     idempotency_key: Mapped[str] = mapped_column(String(100))
+    request_hash: Mapped[str] = mapped_column(String(64))
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     fuel: Mapped[Fuel | None] = relationship()
