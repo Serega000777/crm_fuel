@@ -7,7 +7,7 @@ Architecture, migrations, Telegram dev/auth, responsive dashboard, fuel prices,
 purchases, sales, expenses, collections, reversals, operation history, stock,
 weighted cost, ledger, automated tests and Docker.
 ## In progress
-Validation and publication of the second iteration.
+Review of cash operations and immutable history in Draft PR.
 ## Blocked
 Production Telegram token and URL are intentionally not configured.
 ## Next tasks
@@ -20,7 +20,7 @@ Target repository is `Serega000777/crm_fuel`; initial fuels are configurable rec
 ## Latest branch
 `codex/fuel-crm-foundation`
 ## Latest commit
-`0cab34f` — branch linked to the initial `main` baseline.
+`086a5ea` — Add cash operations and reversals.
 ## Latest PR
 Draft PR #1: https://github.com/Serega000777/crm_fuel/pull/1
 ## Last successful checks
