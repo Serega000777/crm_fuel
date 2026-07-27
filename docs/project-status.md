@@ -22,7 +22,7 @@ Target repository is `Serega000777/crm_fuel`; initial fuels are configurable rec
 ## Latest branch
 `codex/fuel-crm-foundation`
 ## Latest commit
-`086a5ea` — Add cash operations and reversals.
+`8a8126b` — Refactor and secure frontend delivery.
 ## Latest PR
 Draft PR #1: https://github.com/Serega000777/crm_fuel/pull/1
 ## Last successful checks
