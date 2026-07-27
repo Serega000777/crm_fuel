@@ -75,10 +75,17 @@ class Operation(Base):
     total_kopecks: Mapped[int] = mapped_column(BigInteger)
     cost_kopecks: Mapped[int] = mapped_column(BigInteger, default=0)
     payment_method: Mapped[PaymentMethod | None] = mapped_column(Enum(PaymentMethod))
+    description: Mapped[str | None] = mapped_column(String(240))
+    reversal_of_id: Mapped[str | None] = mapped_column(
+        ForeignKey("operations.id"), unique=True
+    )
     idempotency_key: Mapped[str] = mapped_column(String(100))
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     fuel: Mapped[Fuel | None] = relationship()
+    reversal_of: Mapped["Operation | None"] = relationship(
+        remote_side="Operation.id", foreign_keys=[reversal_of_id]
+    )
 
 
 class LedgerEntry(Base):
@@ -88,4 +95,3 @@ class LedgerEntry(Base):
     account: Mapped[str] = mapped_column(String(30))
     amount_kopecks: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-

@@ -8,9 +8,19 @@ from sqlalchemy.orm import Session
 from app.auth import current_user
 from app.config import get_settings
 from app.db import Base, engine, get_db
-from app.models import Fuel
-from app.schemas import DashboardOut, FuelOut, OperationOut, PriceIn, PurchaseIn, SaleIn
-from app.service import dashboard, purchase, sale
+from app.models import Fuel, Operation
+from app.schemas import (
+    CollectionIn,
+    DashboardOut,
+    ExpenseIn,
+    FuelOut,
+    OperationOut,
+    PriceIn,
+    PurchaseIn,
+    ReversalIn,
+    SaleIn,
+)
+from app.service import collect, dashboard, expense, purchase, reverse, sale
 
 
 @asynccontextmanager
@@ -70,3 +80,47 @@ def create_sale(data: SaleIn, idempotency_key: str = Header(..., alias="Idempote
                 user_id: int = Depends(current_user), db: Session = Depends(get_db)):
     return sale(db, data, idempotency_key, user_id)
 
+
+@app.post("/api/v1/expenses", response_model=OperationOut)
+def create_expense(
+    data: ExpenseIn,
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    user_id: int = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    return expense(db, data, idempotency_key, user_id)
+
+
+@app.post("/api/v1/collections", response_model=OperationOut)
+def create_collection(
+    data: CollectionIn,
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    user_id: int = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    return collect(db, data, idempotency_key, user_id)
+
+
+@app.post("/api/v1/operations/{operation_id}/reversal", response_model=OperationOut)
+def reverse_operation(
+    operation_id: str,
+    data: ReversalIn,
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    user_id: int = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    return reverse(db, operation_id, data, idempotency_key, user_id)
+
+
+@app.get("/api/v1/operations", response_model=list[OperationOut])
+def list_operations(
+    limit: int = 50,
+    _: int = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    safe_limit = max(1, min(limit, 200))
+    return list(
+        db.scalars(
+            select(Operation).order_by(Operation.created_at.desc()).limit(safe_limit)
+        )
+    )

@@ -29,3 +29,95 @@ def test_cannot_sell_more_than_stock(client):
                            headers={"X-Dev-User": "1", "Idempotency-Key": "s-no-stock"})
     assert response.status_code == 409
 
+
+def test_expense_collection_and_reversal_preserve_history(client):
+    headers = {"X-Dev-User": "1"}
+    fuel = client.get("/api/v1/fuels", headers=headers).json()[0]
+    client.post(
+        "/api/v1/purchases",
+        json={
+            "fuel_id": fuel["id"],
+            "liters": "20",
+            "unit_price_kopecks": 4000,
+            "payment_method": "transfer",
+        },
+        headers={**headers, "Idempotency-Key": "cash-purchase"},
+    )
+    client.patch(
+        f"/api/v1/fuels/{fuel['id']}/price",
+        json={"sale_price_kopecks": 6000},
+        headers=headers,
+    )
+    sale = client.post(
+        "/api/v1/sales",
+        json={"fuel_id": fuel["id"], "liters": "10", "payment_method": "cash"},
+        headers={**headers, "Idempotency-Key": "cash-sale"},
+    ).json()
+    client.post(
+        "/api/v1/expenses",
+        json={
+            "amount_kopecks": 10000,
+            "description": "Доставка",
+            "payment_method": "cash",
+        },
+        headers={**headers, "Idempotency-Key": "expense-1"},
+    )
+    before = client.get("/api/v1/dashboard", headers=headers).json()
+    assert before["cash_balance_kopecks"] == 50000
+    assert before["net_profit_kopecks"] == 10000
+
+    reversed_sale = client.post(
+        f"/api/v1/operations/{sale['id']}/reversal",
+        json={"reason": "Ошибочная продажа"},
+        headers={**headers, "Idempotency-Key": "reverse-sale"},
+    )
+    assert reversed_sale.status_code == 200
+    after = client.get("/api/v1/dashboard", headers=headers).json()
+    assert after["revenue_kopecks"] == 0
+    assert after["cash_balance_kopecks"] == -10000
+    assert after["fuels"][0]["stock_liters"] == "20.000"
+
+    collection = client.post(
+        "/api/v1/collections",
+        json={"amount_kopecks": 1, "description": "Инкассация"},
+        headers={**headers, "Idempotency-Key": "collection-no-cash"},
+    )
+    assert collection.status_code == 409
+    history = client.get("/api/v1/operations", headers=headers).json()
+    assert len(history) == 4
+    assert any(item["reversal_of_id"] == sale["id"] for item in history)
+
+
+def test_collection_can_take_full_available_cash(client):
+    headers = {"X-Dev-User": "1"}
+    fuel = client.get("/api/v1/fuels", headers=headers).json()[0]
+    client.post(
+        "/api/v1/purchases",
+        json={
+            "fuel_id": fuel["id"],
+            "liters": "10",
+            "unit_price_kopecks": 1000,
+            "payment_method": "transfer",
+        },
+        headers={**headers, "Idempotency-Key": "collect-purchase"},
+    )
+    client.patch(
+        f"/api/v1/fuels/{fuel['id']}/price",
+        json={"sale_price_kopecks": 2000},
+        headers=headers,
+    )
+    client.post(
+        "/api/v1/sales",
+        json={"fuel_id": fuel["id"], "liters": "5", "payment_method": "cash"},
+        headers={**headers, "Idempotency-Key": "collect-sale"},
+    )
+    result = client.post(
+        "/api/v1/collections",
+        json={"description": "Полная инкассация"},
+        headers={**headers, "Idempotency-Key": "collection-full"},
+    )
+    assert result.status_code == 200
+    assert result.json()["total_kopecks"] == 10000
+    assert client.get("/api/v1/dashboard", headers=headers).json()[
+        "cash_balance_kopecks"
+    ] == 0

@@ -1,0 +1,49 @@
+.cashCard {
+  align-items: center;
+  background: #101827;
+  border: 1px solid #202c40;
+  border-radius: 18px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding: 16px;
+}
+.cashCard > div:first-child { display: flex; flex-direction: column; gap: 5px; }
+.cashCard span, .cashCard small { color: var(--muted); font-size: 11px; }
+.cashCard strong { font-size: 20px; }
+.cashCard > div:last-child { display: flex; gap: 6px; }
+.cashCard button {
+  align-items: center; background: #182235; border: 1px solid #2b3950;
+  border-radius: 11px; color: #dce6f7; display: flex; font-size: 11px;
+  gap: 5px; padding: 9px;
+}
+.cashCard button:disabled { opacity: .35; }
+.cashCard svg { width: 15px; }
+.history { display: grid; gap: 8px; }
+.history article {
+  align-items: center; background: #101827; border: 1px solid #202c40;
+  border-radius: 15px; display: flex; gap: 11px; padding: 13px;
+}
+.opIcon {
+  background: #1d4ed833; border-radius: 11px; color: #60a5fa;
+  display: grid; height: 38px; place-items: center; width: 38px;
+}
+.opIcon.expense { background: #991b1b33; color: #f87171; }
+.opIcon.collection { background: #713f1233; color: #fbbf24; }
+.opIcon.reversal { background: #374151; color: #cbd5e1; }
+.opIcon svg { width: 18px; }
+.opBody { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.opBody span {
+  color: var(--muted); font-size: 11px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.opAmount { align-items: center; display: flex; gap: 7px; }
+.opAmount button {
+  background: #253147; border: 0; border-radius: 8px; color: #9fb0c9;
+  display: grid; padding: 6px;
+}
+.opAmount svg { width: 14px; }
+.empty { color: var(--muted); padding: 60px 20px; text-align: center; }
+.empty svg { width: 38px; }
+.empty h3 { color: #e5e7eb; }
