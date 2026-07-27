@@ -18,9 +18,9 @@ Target repository is `Serega000777/crm_fuel`; initial fuels are configurable rec
 ## Latest branch
 `codex/fuel-crm-foundation`
 ## Latest commit
-Pending.
+`3a71725` — Build CRM Fuel foundation.
 ## Latest PR
 Pending.
 ## Last successful checks
-Pending.
-
+2026-07-27: Ruff, mypy, 3 pytest tests, ESLint, TypeScript/Vite production
+build and production dependency audit.
