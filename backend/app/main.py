@@ -11,6 +11,7 @@ from app.auth import current_user
 from app.config import get_settings
 from app.db import Base, engine, get_db
 from app.models import Fuel, Operation, Role
+from app.rate_limit import RedisRateLimiter
 from app.schemas import (
     CollectionIn,
     DashboardOut,
@@ -44,12 +45,14 @@ IdempotencyKey = Annotated[
         pattern=r"^[A-Za-z0-9._:-]+$",
     ),
 ]
+rate_limiter = RedisRateLimiter(get_settings())
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     settings = get_settings()
     settings.validate_runtime()
+    await rate_limiter.connect()
     if settings.database_url.startswith("sqlite"):
         Base.metadata.create_all(engine)
     with Session(engine) as db:
@@ -61,12 +64,32 @@ async def lifespan(_: FastAPI):
                 Fuel(name="ДТ", code="DT", color="#F59E0B", display_order=4),
             ])
             db.commit()
-    yield
+    try:
+        yield
+    finally:
+        await rate_limiter.close()
 
 
 app = FastAPI(title="CRM Fuel API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=get_settings().allowed_origins,
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def enforce_rate_limit(request: Request, call_next) -> Response:
+    allowed, limit, remaining = await rate_limiter.check(request)
+    if not allowed:
+        return Response(
+            content='{"detail":"Too many requests"}',
+            status_code=429,
+            media_type="application/json",
+            headers={"Retry-After": "60", "X-RateLimit-Limit": str(limit)},
+        )
+    response = await call_next(request)
+    if limit:
+        response.headers["X-RateLimit-Limit"] = str(limit)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+    return response
 
 
 @app.middleware("http")

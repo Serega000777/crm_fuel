@@ -158,5 +158,6 @@ def test_production_configuration_fails_closed():
         owner_telegram_id=42,
         secret_key="x" * 32,
         cors_origins="https://crm.example.com",
+        rate_limit_enabled=True,
     )
     safe.validate_runtime()

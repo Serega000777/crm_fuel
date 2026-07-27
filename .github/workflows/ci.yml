@@ -26,3 +26,11 @@ jobs:
       - run: npm run format:check
       - run: npm run lint
       - run: npm run build
+  infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose config --quiet
+      - run: sh -n ops/backup/backup.sh
+      - run: sh -n ops/backup/run.sh
+      - run: sh -n ops/backup/restore.sh

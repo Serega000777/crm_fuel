@@ -2,9 +2,9 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: crm_fuel
-      POSTGRES_USER: crm_fuel
-      POSTGRES_PASSWORD: crm_fuel
+      POSTGRES_DB: ${POSTGRES_DB:-crm_fuel}
+      POSTGRES_USER: ${POSTGRES_USER:-crm_fuel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crm_fuel}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,6 +20,26 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  backup:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-crm_fuel}
+      POSTGRES_USER: ${POSTGRES_USER:-crm_fuel}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-crm_fuel}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ./ops/backup:/opt/backup:ro
+      - postgres_backups:/backups
+    command: ["/bin/sh", "/opt/backup/run.sh"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    restart: unless-stopped
 
   backend:
     build: ./backend
@@ -47,3 +67,4 @@ services:
 
 volumes:
   postgres_data:
+  postgres_backups:

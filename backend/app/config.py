@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     secret_key: str = "development-only"
     database_url: str = "sqlite:///./crm_fuel.db"
     redis_url: str = "redis://localhost:6379/0"
+    rate_limit_enabled: bool = False
+    rate_limit_read_per_minute: int = 120
+    rate_limit_write_per_minute: int = 30
     telegram_bot_token: str = ""
     owner_telegram_id: int | None = None
     dev_auth_enabled: bool = True
@@ -29,6 +32,12 @@ class Settings(BaseSettings):
             errors.append("TELEGRAM_BOT_TOKEN is required in production")
         if not self.owner_telegram_id:
             errors.append("OWNER_TELEGRAM_ID is required in production")
+        if not self.rate_limit_enabled:
+            errors.append("RATE_LIMIT_ENABLED must be true in production")
+        if not self.redis_url:
+            errors.append("REDIS_URL is required in production")
+        if self.rate_limit_read_per_minute < 1 or self.rate_limit_write_per_minute < 1:
+            errors.append("Rate limits must be positive")
         if "*" in self.allowed_origins or not self.allowed_origins:
             errors.append("CORS_ORIGINS must contain explicit trusted origins")
         if self.secret_key == "development-only" or len(self.secret_key) < 32:

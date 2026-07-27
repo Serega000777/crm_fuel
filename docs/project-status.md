@@ -10,15 +10,17 @@ Completed full code/database/security audit, deterministic migrations, balanced
 ledger, request-bound idempotency, concurrency locks and container hardening.
 Added local purchase intelligence with delivery/other costs, landed cost per
 liter, projected weighted average, margin and rule-based recommendations.
+Added Redis-backed production rate limiting, verified scheduled PostgreSQL
+backups, an explicit restore procedure and infrastructure checks in CI.
 ## In progress
-Review of audit fixes in Draft PR.
+Production-readiness review in Draft PR.
 ## Blocked
 Production Telegram token and URL are intentionally not configured.
 ## Next tasks
 Period reports, exports, employee management and complete RBAC management.
 ## Known limitations
-History currently uses the latest 50 operations. Redis rate limiting, real
-PostgreSQL concurrency stress tests and production backup/restore rehearsal remain.
+History currently uses the latest 50 operations. Real PostgreSQL concurrency
+stress tests and a restore rehearsal on the target production host remain.
 ## Owner decisions
 Target repository is `Serega000777/crm_fuel`; initial fuels are configurable records.
 ## Latest branch
