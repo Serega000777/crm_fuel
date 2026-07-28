@@ -53,12 +53,12 @@ Target repository is `Serega000777/crm_fuel`; initial fuels are configurable rec
 `codex/fuel-crm-foundation`
 
 ## Latest commit
-`5216d79` — Add append-only inventory reconciliation.
+`e71e567` — Restore rehearsal into explicit database.
 
 ## Latest PR
 Draft PR #1: https://github.com/Serega000777/crm_fuel/pull/1
 
 ## Last successful checks
-2026-07-28: Ruff, mypy, 20 pytest tests, Alembic upgrade/downgrade, ESLint,
-TypeScript/Vite production build, pip-audit, full npm audit, Compose config and
-PostgreSQL 16 multi-session concurrency checks.
+2026-07-28: Ruff, mypy, 21 pytest tests, Alembic upgrade/downgrade, ESLint,
+TypeScript/Vite production build, pip-audit, full npm audit, Compose config,
+PostgreSQL 16 multi-session concurrency and verified backup/restore rehearsal.
