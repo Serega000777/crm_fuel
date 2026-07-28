@@ -3,6 +3,19 @@ on: [push, pull_request]
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: crm_fuel_test
+          POSTGRES_USER: crm_fuel
+          POSTGRES_PASSWORD: test-only-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U crm_fuel -d crm_fuel_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults: { run: { working-directory: backend } }
     steps:
       - uses: actions/checkout@v4
@@ -14,6 +27,12 @@ jobs:
       - run: ruff check .
       - run: mypy app
       - run: pytest
+      - run: alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+psycopg://crm_fuel:test-only-password@localhost:5432/crm_fuel_test
+      - run: python tests/postgres_concurrency.py
+        env:
+          DATABASE_URL: postgresql+psycopg://crm_fuel:test-only-password@localhost:5432/crm_fuel_test
   frontend:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: frontend } }

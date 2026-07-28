@@ -17,6 +17,9 @@ liter, projected weighted average, margin and rule-based recommendations.
 Added Redis-backed production rate limiting, verified scheduled PostgreSQL
 backups, an explicit restore procedure and infrastructure checks in CI.
 
+Added a PostgreSQL 16 multi-session CI scenario for overselling protection,
+concurrent idempotency and balanced ledgers.
+
 ## In progress
 Production-readiness review in Draft PR.
 
@@ -24,12 +27,12 @@ Production-readiness review in Draft PR.
 Production Telegram token, HTTPS URL and hosting access are intentionally not configured.
 
 ## Next tasks
-Production PostgreSQL concurrency stress test, deployment, restore rehearsal,
-Telegram Mini App E2E, period reports, exports and complete employee/RBAC management.
+Deployment, production-scale load test, restore rehearsal, Telegram Mini App E2E,
+period reports, exports and complete employee/RBAC management.
 
 ## Known limitations
-History currently uses the latest 50 operations. Real PostgreSQL concurrency
-stress tests and a restore rehearsal on the target production host remain.
+History currently uses the latest 50 operations. A production-scale load test and
+restore rehearsal on the target host remain.
 
 ## Owner decisions
 Target repository is `Serega000777/crm_fuel`; initial fuels are configurable records.
