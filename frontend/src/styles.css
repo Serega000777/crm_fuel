@@ -143,6 +143,10 @@ header p {
 .fuelTop {
   justify-content: space-between;
 }
+.fuelTools {
+  display: flex;
+  gap: 6px;
+}
 .fuelName {
   gap: 12px;
 }

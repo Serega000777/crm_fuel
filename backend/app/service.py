@@ -12,6 +12,7 @@ from app.models import Fuel, LedgerEntry, Operation, OperationType, PaymentMetho
 from app.schemas import (
     CollectionIn,
     ExpenseIn,
+    InventoryAdjustmentIn,
     PurchaseAnalysisIn,
     PurchaseIn,
     ReversalIn,
@@ -244,6 +245,59 @@ def sale(db: Session, data: SaleIn, key: str, user_id: int) -> Operation:
     return op
 
 
+def adjust_inventory(
+    db: Session,
+    data: InventoryAdjustmentIn,
+    key: str,
+    user_id: int,
+) -> Operation:
+    transaction_lock(db, "idempotency", key)
+    fingerprint = request_fingerprint("inventory-adjustment", data.model_dump(mode="json"))
+    if found := existing(db, key, fingerprint):
+        return found
+    require_roles(db, user_id, Role.owner)
+    fuel = locked_fuel(db, data.fuel_id)
+    if not fuel:
+        raise HTTPException(404, "Fuel not found")
+    current_stock = Decimal(fuel.stock_liters)
+    delta = data.actual_stock_liters - current_stock
+    if delta == 0:
+        raise HTTPException(409, "Actual stock is unchanged")
+    value_delta = money(delta, fuel.average_cost_kopecks)
+    fuel.stock_liters = data.actual_stock_liters
+    op = Operation(
+        type=OperationType.adjustment,
+        fuel_id=fuel.id,
+        liters=delta,
+        unit_price_kopecks=fuel.average_cost_kopecks,
+        total_kopecks=0,
+        cost_kopecks=value_delta,
+        description=data.reason,
+        idempotency_key=key,
+        request_hash=fingerprint,
+        created_by=user_id,
+    )
+    db.add(op)
+    db.flush()
+    transaction_lock(db, "ledger", "inventory")
+    db.add_all(
+        [
+            LedgerEntry(
+                operation_id=op.id,
+                account="inventory",
+                amount_kopecks=value_delta,
+            ),
+            LedgerEntry(
+                operation_id=op.id,
+                account="inventory_adjustment",
+                amount_kopecks=-value_delta,
+            ),
+        ]
+    )
+    db.commit()
+    return op
+
+
 def expense(db: Session, data: ExpenseIn, key: str, user_id: int) -> Operation:
     transaction_lock(db, "idempotency", key)
     fingerprint = request_fingerprint("expense", data.model_dump(mode="json"))
@@ -367,6 +421,11 @@ def reverse(
                 Decimal(1), rounding=ROUND_HALF_UP
             )
         )
+    elif original.type == OperationType.adjustment and fuel:
+        new_stock = Decimal(fuel.stock_liters) - liters
+        if new_stock < 0:
+            raise HTTPException(409, "Not enough stock to reverse this adjustment")
+        fuel.stock_liters = new_stock
 
     op = Operation(
         type=OperationType.reversal,

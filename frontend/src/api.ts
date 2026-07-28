@@ -108,6 +108,12 @@ export const api = {
       headers: { "Idempotency-Key": crypto.randomUUID() },
       body: JSON.stringify(payload),
     }),
+  adjustInventory: (payload: object) =>
+    request("/api/v1/inventory/adjustments", {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify(payload),
+    }),
   expense: (payload: object) =>
     request("/api/v1/expenses", {
       method: "POST",

@@ -25,7 +25,7 @@ import {
 
 const rub = (value: number) =>
   new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" }).format(value / 100);
-type FuelMode = "purchase" | "sale" | "price";
+type FuelMode = "purchase" | "sale" | "price" | "adjustment";
 type CashMode = "expense" | "collection";
 
 function ReportsView() {
@@ -138,11 +138,18 @@ function FuelSheet({
     [payment, setPayment] = useState("cash"),
     [delivery, setDelivery] = useState("0"),
     [otherCosts, setOtherCosts] = useState("0"),
+    [reason, setReason] = useState("Инвентаризация резервуара"),
     [analysis, setAnalysis] = useState<PurchaseAnalysis | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const title =
-    mode === "purchase" ? "Новая закупка" : mode === "sale" ? "Новая продажа" : "Цена продажи";
+    mode === "purchase"
+      ? "Новая закупка"
+      : mode === "sale"
+        ? "Новая продажа"
+        : mode === "adjustment"
+          ? "Инвентаризация"
+          : "Цена продажи";
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -158,7 +165,14 @@ function FuelSheet({
           other_cost_kopecks: parseKopecks(otherCosts),
           payment_method: payment,
         });
-      else await api.sale({ fuel_id: fuel.id, liters, payment_method: payment });
+      else if (mode === "sale")
+        await api.sale({ fuel_id: fuel.id, liters, payment_method: payment });
+      else
+        await api.adjustInventory({
+          fuel_id: fuel.id,
+          actual_stock_liters: liters,
+          reason,
+        });
       onDone();
       onClose();
     } catch (e) {
@@ -200,11 +214,11 @@ function FuelSheet({
         </div>
         {mode !== "price" && (
           <label>
-            Количество, л
+            {mode === "adjustment" ? "Фактический остаток, л" : "Количество, л"}
             <input
               inputMode="decimal"
               required
-              min=".001"
+              min={mode === "adjustment" ? "0" : ".001"}
               step=".001"
               value={liters}
               onChange={(e) => {
@@ -214,7 +228,7 @@ function FuelSheet({
             />
           </label>
         )}
-        {mode !== "sale" && (
+        {(mode === "purchase" || mode === "price") && (
           <label>
             {mode === "purchase" ? "Закупочная цена, ₽/л" : "Цена продажи, ₽/л"}
             <input
@@ -227,6 +241,18 @@ function FuelSheet({
                 setPrice(e.target.value.replace(",", "."));
                 setAnalysis(null);
               }}
+            />
+          </label>
+        )}
+        {mode === "adjustment" && (
+          <label>
+            Причина
+            <input
+              required
+              minLength={3}
+              maxLength={240}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
             />
           </label>
         )}
@@ -260,7 +286,7 @@ function FuelSheet({
             </label>
           </div>
         )}
-        {mode !== "price" && (
+        {(mode === "purchase" || mode === "sale") && (
           <label>
             Способ оплаты
             <select value={payment} onChange={(e) => setPayment(e.target.value)}>
@@ -419,6 +445,7 @@ const labels: Record<string, string> = {
   sale: "Продажа",
   expense: "Расход",
   collection: "Инкассация",
+  adjustment: "Инвентаризация",
   reversal: "Отмена",
 };
 function HistoryView({
@@ -590,12 +617,20 @@ export default function App() {
                           <span>{rub(f.sale_price_kopecks)} / л</span>
                         </div>
                       </div>
-                      <button
-                        className="priceBtn"
-                        onClick={() => setActive({ mode: "price", fuel: f })}
-                      >
-                        Цена
-                      </button>
+                      <div className="fuelTools">
+                        <button
+                          className="priceBtn"
+                          onClick={() => setActive({ mode: "price", fuel: f })}
+                        >
+                          Цена
+                        </button>
+                        <button
+                          className="priceBtn"
+                          onClick={() => setActive({ mode: "adjustment", fuel: f })}
+                        >
+                          Замер
+                        </button>
+                      </div>
                     </div>
                     <div className="stock">
                       <span>В резервуаре</span>

@@ -118,6 +118,18 @@ def test_operator_rbac_is_enforced_on_backend(client):
         ).status_code
         == 200
     )
+    assert (
+        client.post(
+            "/api/v1/inventory/adjustments",
+            json={
+                "fuel_id": fuel["id"],
+                "actual_stock_liters": "5",
+                "reason": "Unauthorized measurement",
+            },
+            headers={**operator, "Idempotency-Key": "operator-adjustment"},
+        ).status_code
+        == 403
+    )
 
 
 def test_cash_expense_cannot_overdraw_cash(client):

@@ -33,6 +33,12 @@ class SaleIn(BaseModel):
     payment_method: PaymentMethod
 
 
+class InventoryAdjustmentIn(BaseModel):
+    fuel_id: str
+    actual_stock_liters: Decimal = Field(ge=0, decimal_places=3)
+    reason: str = Field(min_length=3, max_length=240)
+
+
 class PriceIn(BaseModel):
     sale_price_kopecks: int = Field(gt=0)
 

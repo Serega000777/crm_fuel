@@ -10,6 +10,7 @@
 - `POST /api/v1/purchases` — закупка.
 - `POST /api/v1/purchases/analyze` — локальный анализ себестоимости.
 - `POST /api/v1/sales` — продажа.
+- `POST /api/v1/inventory/adjustments` — owner-only инвентаризация фактического остатка.
 - `POST /api/v1/expenses` — расход.
 - `POST /api/v1/collections` — инкассация.
 - `GET /api/v1/operations` — история операций с `limit`, `offset`,

@@ -26,6 +26,9 @@ reversal-aware revenue, COGS, expenses, profit, cash flow and fuel volumes.
 Added paginated operation history with server-side operation type/date filters
 and incremental loading in the Mini App.
 
+Added owner-only append-only inventory reconciliation with balanced ledger entries,
+RBAC, idempotency and reversal support.
+
 ## In progress
 Production-readiness review in Draft PR.
 
@@ -46,12 +49,12 @@ Target repository is `Serega000777/crm_fuel`; initial fuels are configurable rec
 `codex/fuel-crm-foundation`
 
 ## Latest commit
-`c6f2243` — Test PostgreSQL financial concurrency.
+Pending inventory reconciliation commit.
 
 ## Latest PR
 Draft PR #1: https://github.com/Serega000777/crm_fuel/pull/1
 
 ## Last successful checks
-2026-07-28: Ruff, mypy, 17 pytest tests, Alembic upgrade/downgrade, ESLint,
+2026-07-28: Ruff, mypy, 20 pytest tests, Alembic upgrade/downgrade, ESLint,
 TypeScript/Vite production build, pip-audit, full npm audit, Compose config and
 PostgreSQL 16 multi-session concurrency checks.

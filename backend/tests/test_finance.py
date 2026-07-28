@@ -319,3 +319,58 @@ def test_operation_history_pagination_and_filter(client):
     ).json()
     assert len(sales) == 1
     assert sales[0]["type"] == "sale"
+
+
+def test_inventory_adjustment_is_append_only_and_reversible(client):
+    headers = {"X-Dev-User": "1"}
+    fuel = client.get("/api/v1/fuels", headers=headers).json()[0]
+    client.post(
+        "/api/v1/purchases",
+        json={
+            "fuel_id": fuel["id"],
+            "liters": "10",
+            "unit_price_kopecks": 4000,
+            "payment_method": "transfer",
+        },
+        headers={**headers, "Idempotency-Key": "adjustment-purchase"},
+    )
+    adjustment = client.post(
+        "/api/v1/inventory/adjustments",
+        json={
+            "fuel_id": fuel["id"],
+            "actual_stock_liters": "7",
+            "reason": "Physical tank measurement",
+        },
+        headers={**headers, "Idempotency-Key": "inventory-adjustment"},
+    )
+    assert adjustment.status_code == 200
+    result = adjustment.json()
+    assert result["type"] == "adjustment"
+    assert result["liters"] == "-3.000"
+    assert result["cost_kopecks"] == -12000
+    assert (
+        client.get("/api/v1/dashboard", headers=headers).json()["fuels"][0][
+            "stock_liters"
+        ]
+        == "7.000"
+    )
+    with SessionLocal() as db:
+        balance = db.scalar(
+            select(func.sum(LedgerEntry.amount_kopecks)).where(
+                LedgerEntry.operation_id == result["id"]
+            )
+        )
+        assert balance == 0
+
+    reversed_adjustment = client.post(
+        f"/api/v1/operations/{result['id']}/reversal",
+        json={"reason": "Measurement was incorrect"},
+        headers={**headers, "Idempotency-Key": "reverse-adjustment"},
+    )
+    assert reversed_adjustment.status_code == 200
+    assert (
+        client.get("/api/v1/dashboard", headers=headers).json()["fuels"][0][
+            "stock_liters"
+        ]
+        == "10.000"
+    )

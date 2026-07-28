@@ -20,6 +20,7 @@ from app.schemas import (
     DashboardOut,
     ExpenseIn,
     FuelOut,
+    InventoryAdjustmentIn,
     OperationOut,
     PeriodReportOut,
     PriceIn,
@@ -30,6 +31,7 @@ from app.schemas import (
     SaleIn,
 )
 from app.service import (
+    adjust_inventory,
     analyze_purchase,
     collect,
     dashboard,
@@ -169,6 +171,16 @@ def create_sale(
     db: Session = Depends(get_db),
 ):
     return sale(db, data, idempotency_key, user_id)
+
+
+@app.post("/api/v1/inventory/adjustments", response_model=OperationOut)
+def create_inventory_adjustment(
+    data: InventoryAdjustmentIn,
+    idempotency_key: IdempotencyKey,
+    user_id: int = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    return adjust_inventory(db, data, idempotency_key, user_id)
 
 
 @app.post("/api/v1/expenses", response_model=OperationOut)

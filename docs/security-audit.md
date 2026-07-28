@@ -68,10 +68,9 @@ frontend money handling, dependencies, Docker images, Nginx and CI.
 
 ## Residual risks
 
-- PostgreSQL concurrency locks are covered by code review and SQL generation,
-  but a real multi-session PostgreSQL stress test should run in deployment CI.
-- Redis rate limiting is not implemented yet.
-- Production backup/restore, TLS termination, secret rotation and Telegram
-  end-to-end checks require the final hosting environment and real bot token.
-- Operator expense categories/permissions are not yet configurable per user.
-
+- PostgreSQL concurrency is exercised in CI with separate sessions; a larger
+  production-scale load test still requires the target host.
+- Redis rate limiting and scheduled verified backups are implemented.
+- Restore rehearsal, TLS termination, secret rotation and Telegram end-to-end
+  checks require the final hosting environment and real bot token.
+- Employee management is intentionally deferred by the owner.
