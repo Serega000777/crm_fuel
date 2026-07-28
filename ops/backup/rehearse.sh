@@ -7,9 +7,10 @@ backup_file="$(find "$backup_dir" -type f -name 'crm_fuel_*.dump' | sort | tail 
 test -n "$backup_file"
 
 pg_restore --list "$backup_file" >/dev/null
-PGDATABASE="$restore_database" pg_restore \
+pg_restore \
   --host="$POSTGRES_HOST" \
   --username="$POSTGRES_USER" \
+  --dbname="$restore_database" \
   --no-owner \
   "$backup_file"
 
