@@ -46,6 +46,19 @@ export type PurchaseAnalysis = {
     recommendation: string;
   };
 };
+export type PeriodReport = {
+  date_from: string;
+  date_to: string;
+  revenue_kopecks: number;
+  cogs_kopecks: number;
+  gross_profit_kopecks: number;
+  expenses_kopecks: number;
+  net_profit_kopecks: number;
+  cash_flow_kopecks: number;
+  purchased_liters: string;
+  sold_liters: string;
+  operations_count: number;
+};
 const base = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const initData = window.Telegram?.WebApp?.initData;
 const authHeaders = (): Record<string, string> =>
@@ -108,6 +121,22 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   operations: () => request<Operation[]>("/api/v1/operations"),
+  report: (dateFrom: string, dateTo: string) =>
+    request<PeriodReport>(
+      `/api/v1/reports/period?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`,
+    ),
+  exportReport: async (dateFrom: string, dateTo: string) => {
+    const response = await fetch(
+      `${base}/api/v1/reports/period.csv?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`,
+      { headers: authHeaders(), signal: AbortSignal.timeout(15_000) },
+    );
+    if (!response.ok) throw new Error("Не удалось выгрузить отчёт");
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(await response.blob());
+    link.download = `crm-fuel-${dateFrom}-${dateTo}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  },
   reverse: (id: string, reason: string) =>
     request(`/api/v1/operations/${id}/reversal`, {
       method: "POST",

@@ -1,24 +1,26 @@
 # API
 
-Все `/api/v1/*` требуют Telegram или dev авторизацию.
+Все защищённые endpoints требуют Telegram `Authorization: tma ...` либо
+`X-Dev-User` только в development.
 
-- `GET /api/v1/dashboard` — показатели и остатки.
-- `GET /api/v1/fuels` — справочник топлива.
-- `PATCH /api/v1/fuels/{id}/price` — цена продажи.
+- `GET /health` — проверка API и базы.
+- `GET /api/v1/dashboard` — финансовая сводка владельца.
+- `GET /api/v1/fuels` — список топлива.
+- `PATCH /api/v1/fuels/{id}/price` — изменение цены.
 - `POST /api/v1/purchases` — закупка.
-- `POST /api/v1/purchases/analyze` — локальный анализ полной себестоимости,
-  будущей средней цены и маржи без создания операции.
+- `POST /api/v1/purchases/analyze` — локальный анализ себестоимости.
 - `POST /api/v1/sales` — продажа.
 - `POST /api/v1/expenses` — расход.
-- `POST /api/v1/collections` — частичная или полная инкассация наличности.
-- `GET /api/v1/operations` — неизменяемая история операций.
+- `POST /api/v1/collections` — инкассация.
+- `GET /api/v1/operations` — история операций.
 - `POST /api/v1/operations/{id}/reversal` — компенсирующая отмена.
+- `GET /api/v1/reports/period` — отчёт владельца за период.
+- `GET /api/v1/reports/period.csv` — UTF-8 CSV-выгрузка отчёта.
 
-Финансовые POST-запросы требуют `Idempotency-Key` длиной 8–100 символов.
-Ключ связан с типом и нормализованным payload: изменение содержимого при
-повторном ключе возвращает `409`. Ошибки используют стандартный FastAPI JSON
-`{"detail": "..."}`.
+Параметры отчёта: `date_from=YYYY-MM-DD` и `date_to=YYYY-MM-DD`. Период не может
+превышать 366 дней. Показатели строятся из ledger, поэтому reversal автоматически
+компенсирует исходные суммы.
 
-Цена, закупка, dashboard, инкассация и reversal доступны владельцу. Оператор
-может просматривать топливо, продавать, добавлять разрешённые расходы и видеть
-только созданные им операции.
+Финансовые POST-запросы требуют `Idempotency-Key` длиной 8–100 символов. Ключ
+связан с типом и нормализованным payload; изменение содержимого при повторном
+ключе возвращает `409`.

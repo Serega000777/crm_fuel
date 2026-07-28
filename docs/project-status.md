@@ -20,6 +20,9 @@ backups, an explicit restore procedure and infrastructure checks in CI.
 Added a PostgreSQL 16 multi-session CI scenario for overselling protection,
 concurrent idempotency and balanced ledgers.
 
+Added owner-only period reports and CSV export based on ledger entries, including
+reversal-aware revenue, COGS, expenses, profit, cash flow and fuel volumes.
+
 ## In progress
 Production-readiness review in Draft PR.
 
@@ -27,8 +30,8 @@ Production-readiness review in Draft PR.
 Production Telegram token, HTTPS URL and hosting access are intentionally not configured.
 
 ## Next tasks
-Deployment, production-scale load test, restore rehearsal, Telegram Mini App E2E,
-period reports, exports and complete employee/RBAC management.
+Deployment, production-scale load test, restore rehearsal, Telegram Mini App E2E
+and complete employee/RBAC management.
 
 ## Known limitations
 History currently uses the latest 50 operations. A production-scale load test and

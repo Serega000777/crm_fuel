@@ -1,9 +1,12 @@
+import csv
+import io
 from contextlib import asynccontextmanager
+from datetime import date
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -18,6 +21,7 @@ from app.schemas import (
     ExpenseIn,
     FuelOut,
     OperationOut,
+    PeriodReportOut,
     PriceIn,
     PurchaseAnalysisIn,
     PurchaseAnalysisOut,
@@ -30,6 +34,7 @@ from app.service import (
     collect,
     dashboard,
     expense,
+    period_report,
     purchase,
     require_roles,
     reverse,
@@ -211,4 +216,36 @@ def list_operations(
         db.scalars(
             query.order_by(Operation.created_at.desc()).limit(limit)
         )
+    )
+
+
+@app.get("/api/v1/reports/period", response_model=PeriodReportOut)
+def get_period_report(
+    date_from: date,
+    date_to: date,
+    user_id: int = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    return period_report(db, date_from, date_to, user_id)
+
+
+@app.get("/api/v1/reports/period.csv")
+def export_period_report(
+    date_from: date,
+    date_to: date,
+    user_id: int = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    report = period_report(db, date_from, date_to, user_id)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["metric", "value"])
+    for key, value in report.items():
+        writer.writerow([key, value])
+    content = "\ufeff" + output.getvalue()
+    filename = f"crm-fuel-{date_from.isoformat()}-{date_to.isoformat()}.csv"
+    return StreamingResponse(
+        iter([content]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

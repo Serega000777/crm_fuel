@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
@@ -103,3 +103,17 @@ class PurchaseAnalysisOut(BaseModel):
     profitable: bool
     analysis_source: str
     advisory: PurchaseAdvisory
+
+
+class PeriodReportOut(BaseModel):
+    date_from: date
+    date_to: date
+    revenue_kopecks: int
+    cogs_kopecks: int
+    gross_profit_kopecks: int
+    expenses_kopecks: int
+    net_profit_kopecks: int
+    cash_flow_kopecks: int
+    purchased_liters: Decimal
+    sold_liters: Decimal
+    operations_count: int

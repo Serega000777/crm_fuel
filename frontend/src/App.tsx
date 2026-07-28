@@ -3,6 +3,7 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   Banknote,
+  FileDown,
   Fuel as FuelIcon,
   History,
   LoaderCircle,
@@ -18,6 +19,7 @@ import {
   type Dashboard,
   type Fuel,
   type Operation,
+  type PeriodReport,
   type PurchaseAnalysis,
 } from "./api";
 
@@ -25,6 +27,98 @@ const rub = (value: number) =>
   new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" }).format(value / 100);
 type FuelMode = "purchase" | "sale" | "price";
 type CashMode = "expense" | "collection";
+
+function ReportsView() {
+  const today = new Intl.DateTimeFormat("sv-SE").format(new Date());
+  const [dateFrom, setDateFrom] = useState(`${today.slice(0, 8)}01`),
+    [dateTo, setDateTo] = useState(today),
+    [report, setReport] = useState<PeriodReport | null>(null),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  const loadReport = useCallback(async () => {
+    setBusy(true);
+    try {
+      setReport(await api.report(dateFrom, dateTo));
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось построить отчёт");
+    } finally {
+      setBusy(false);
+    }
+  }, [dateFrom, dateTo]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadReport();
+  }, [loadReport]);
+  return (
+    <section className="reports">
+      <div className="reportFilters">
+        <label>
+          С
+          <input
+            type="date"
+            value={dateFrom}
+            max={dateTo}
+            onChange={(e) => setDateFrom(e.target.value)}
+          />
+        </label>
+        <label>
+          По
+          <input
+            type="date"
+            value={dateTo}
+            min={dateFrom}
+            onChange={(e) => setDateTo(e.target.value)}
+          />
+        </label>
+      </div>
+      {error && <div className="error">{error}</div>}
+      {busy && <LoaderCircle className="spin" />}
+      {report && !busy && (
+        <>
+          <div className="reportGrid">
+            <article>
+              <span>Выручка</span>
+              <strong>{rub(report.revenue_kopecks)}</strong>
+            </article>
+            <article>
+              <span>Чистая прибыль</span>
+              <strong>{rub(report.net_profit_kopecks)}</strong>
+            </article>
+            <article>
+              <span>Расходы</span>
+              <strong>{rub(report.expenses_kopecks)}</strong>
+            </article>
+            <article>
+              <span>Денежный поток</span>
+              <strong>{rub(report.cash_flow_kopecks)}</strong>
+            </article>
+            <article>
+              <span>Закуплено</span>
+              <strong>{Number(report.purchased_liters).toLocaleString("ru-RU")} л</strong>
+            </article>
+            <article>
+              <span>Продано</span>
+              <strong>{Number(report.sold_liters).toLocaleString("ru-RU")} л</strong>
+            </article>
+          </div>
+          <button
+            className="exportButton"
+            onClick={() =>
+              void api
+                .exportReport(dateFrom, dateTo)
+                .catch((e) =>
+                  setError(e instanceof Error ? e.message : "Не удалось выгрузить отчёт"),
+                )
+            }
+          >
+            <FileDown /> Скачать CSV
+          </button>
+        </>
+      )}
+    </section>
+  );
+}
 
 function FuelSheet({
   mode,
@@ -374,7 +468,7 @@ export default function App() {
     [error, setError] = useState(""),
     [active, setActive] = useState<{ mode: FuelMode; fuel: Fuel } | null>(null),
     [cashMode, setCashMode] = useState<CashMode | null>(null),
-    [tab, setTab] = useState<"home" | "operations">("home");
+    [tab, setTab] = useState<"home" | "operations" | "reports">("home");
   const load = useCallback(async () => {
     try {
       const [dashboard, history] = await Promise.all([api.dashboard(), api.operations()]);
@@ -404,8 +498,14 @@ export default function App() {
           <span className="brand">
             <FuelIcon /> CRM FUEL
           </span>
-          <h1>{tab === "home" ? "Добрый день" : "Операции"}</h1>
-          <p>{tab === "home" ? "Финансы и остатки" : "Полная финансовая история"}</p>
+          <h1>{tab === "home" ? "Добрый день" : tab === "operations" ? "Операции" : "Отчёты"}</h1>
+          <p>
+            {tab === "home"
+              ? "Финансы и остатки"
+              : tab === "operations"
+                ? "Полная финансовая история"
+                : "Финансы за период"}
+          </p>
         </div>
         <button className="icon" onClick={() => void load()}>
           <RefreshCw />
@@ -504,7 +604,7 @@ export default function App() {
                 ))}
               </section>
             </>
-          ) : (
+          ) : tab === "operations" ? (
             <>
               <div className="sectionTitle">
                 <h2>История</h2>
@@ -524,6 +624,8 @@ export default function App() {
                 }}
               />
             </>
+          ) : (
+            <ReportsView />
           )}
           <nav>
             <button className={tab === "home" ? "selected" : ""} onClick={() => setTab("home")}>
@@ -537,7 +639,10 @@ export default function App() {
               <RefreshCw />
               Операции
             </button>
-            <button onClick={() => alert("Отчёты — следующий этап")}>
+            <button
+              className={tab === "reports" ? "selected" : ""}
+              onClick={() => setTab("reports")}
+            >
               <WalletCards />
               Отчёты
             </button>

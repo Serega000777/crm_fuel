@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -224,3 +225,56 @@ def test_purchase_analysis_warns_when_margin_is_negative(client):
     assert result["profitable"] is False
     assert result["projected_margin_per_liter_kopecks"] == -100
     assert "убыточна" in result["advisory"]["summary"].lower()
+
+
+def test_period_report_and_csv_export(client):
+    headers = {"X-Dev-User": "1"}
+    fuel = client.get("/api/v1/fuels", headers=headers).json()[0]
+    client.post(
+        "/api/v1/purchases",
+        json={
+            "fuel_id": fuel["id"],
+            "liters": "20",
+            "unit_price_kopecks": 4000,
+            "payment_method": "transfer",
+        },
+        headers={**headers, "Idempotency-Key": "report-purchase"},
+    )
+    client.patch(
+        f"/api/v1/fuels/{fuel['id']}/price",
+        json={"sale_price_kopecks": 6000},
+        headers=headers,
+    )
+    client.post(
+        "/api/v1/sales",
+        json={"fuel_id": fuel["id"], "liters": "10", "payment_method": "cash"},
+        headers={**headers, "Idempotency-Key": "report-sale"},
+    )
+    client.post(
+        "/api/v1/expenses",
+        json={
+            "amount_kopecks": 10000,
+            "description": "Report expense",
+            "payment_method": "cash",
+        },
+        headers={**headers, "Idempotency-Key": "report-expense"},
+    )
+    today = datetime.now(UTC).date().isoformat()
+    params = {"date_from": today, "date_to": today}
+    response = client.get("/api/v1/reports/period", params=params, headers=headers)
+    assert response.status_code == 200
+    report = response.json()
+    assert report["revenue_kopecks"] == 60000
+    assert report["cogs_kopecks"] == 40000
+    assert report["gross_profit_kopecks"] == 20000
+    assert report["expenses_kopecks"] == 10000
+    assert report["net_profit_kopecks"] == 10000
+    assert report["cash_flow_kopecks"] == 50000
+    assert report["purchased_liters"] == "20.000"
+    assert report["sold_liters"] == "10.000"
+    assert report["operations_count"] == 3
+
+    exported = client.get("/api/v1/reports/period.csv", params=params, headers=headers)
+    assert exported.status_code == 200
+    assert exported.content.startswith(b"\xef\xbb\xbfmetric,value")
+    assert "attachment;" in exported.headers["content-disposition"]

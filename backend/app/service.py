@@ -1,5 +1,6 @@
 import hashlib
 import json
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException
@@ -441,3 +442,75 @@ def dashboard(db: Session) -> dict:
             "cash_balance_kopecks": cash,
             "total_stock_liters": sum((Decimal(f.stock_liters) for f in fuels), Decimal(0)),
             "fuels": fuels}
+
+
+def period_report(db: Session, date_from: date, date_to: date, user_id: int) -> dict:
+    require_roles(db, user_id, Role.owner)
+    if date_to < date_from:
+        raise HTTPException(422, "date_to must not be earlier than date_from")
+    if date_to - date_from > timedelta(days=366):
+        raise HTTPException(422, "Report period must not exceed 366 days")
+    started_at = datetime.combine(date_from, time.min, tzinfo=UTC)
+    ended_at = datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=UTC)
+    operation_ids = select(Operation.id).where(
+        Operation.created_at >= started_at,
+        Operation.created_at < ended_at,
+    )
+
+    def account_total(account: str) -> int:
+        return int(
+            db.scalar(
+                select(func.coalesce(func.sum(LedgerEntry.amount_kopecks), 0)).where(
+                    LedgerEntry.operation_id.in_(operation_ids),
+                    LedgerEntry.account == account,
+                )
+            )
+            or 0
+        )
+
+    revenue = -account_total("revenue")
+    cogs = account_total("cogs")
+    expenses = account_total("expense")
+    cash_flow = account_total("cash")
+    purchase_ids = select(Operation.id).where(Operation.type == OperationType.purchase)
+    sale_ids = select(Operation.id).where(Operation.type == OperationType.sale)
+    period_filter = (
+        Operation.created_at >= started_at,
+        Operation.created_at < ended_at,
+    )
+    purchased = db.scalar(
+        select(func.coalesce(func.sum(Operation.liters), 0)).where(
+            *period_filter,
+            (Operation.type == OperationType.purchase)
+            | (
+                (Operation.type == OperationType.reversal)
+                & Operation.reversal_of_id.in_(purchase_ids)
+            ),
+        )
+    ) or Decimal(0)
+    sold = db.scalar(
+        select(func.coalesce(func.sum(Operation.liters), 0)).where(
+            *period_filter,
+            (Operation.type == OperationType.sale)
+            | (
+                (Operation.type == OperationType.reversal)
+                & Operation.reversal_of_id.in_(sale_ids)
+            ),
+        )
+    ) or Decimal(0)
+    operations_count = int(
+        db.scalar(select(func.count()).select_from(Operation).where(*period_filter)) or 0
+    )
+    return {
+        "date_from": date_from,
+        "date_to": date_to,
+        "revenue_kopecks": revenue,
+        "cogs_kopecks": cogs,
+        "gross_profit_kopecks": revenue - cogs,
+        "expenses_kopecks": expenses,
+        "net_profit_kopecks": revenue - cogs - expenses,
+        "cash_flow_kopecks": cash_flow,
+        "purchased_liters": purchased,
+        "sold_liters": sold,
+        "operations_count": operations_count,
+    }
