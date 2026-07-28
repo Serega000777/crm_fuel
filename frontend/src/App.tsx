@@ -465,20 +465,35 @@ function HistoryView({
 export default function App() {
   const [data, setData] = useState<Dashboard | null>(null),
     [operations, setOperations] = useState<Operation[]>([]),
+    [operationType, setOperationType] = useState(""),
+    [hasMoreOperations, setHasMoreOperations] = useState(true),
     [error, setError] = useState(""),
     [active, setActive] = useState<{ mode: FuelMode; fuel: Fuel } | null>(null),
     [cashMode, setCashMode] = useState<CashMode | null>(null),
     [tab, setTab] = useState<"home" | "operations" | "reports">("home");
   const load = useCallback(async () => {
     try {
-      const [dashboard, history] = await Promise.all([api.dashboard(), api.operations()]);
+      const [dashboard, history] = await Promise.all([
+        api.dashboard(),
+        api.operations(0, operationType),
+      ]);
       setError("");
       setData(dashboard);
       setOperations(history);
+      setHasMoreOperations(history.length === 50);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка загрузки");
     }
-  }, []);
+  }, [operationType]);
+  const loadMoreOperations = async () => {
+    try {
+      const next = await api.operations(operations.length, operationType);
+      setOperations((current) => [...current, ...next]);
+      setHasMoreOperations(next.length === 50);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось загрузить историю");
+    }
+  };
   // Initial data loading synchronizes the component with the remote API.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -610,6 +625,17 @@ export default function App() {
                 <h2>История</h2>
                 <span>{operations.length}</span>
               </div>
+              <label className="operationFilter">
+                Тип операции
+                <select value={operationType} onChange={(e) => setOperationType(e.target.value)}>
+                  <option value="">Все</option>
+                  <option value="purchase">Закупки</option>
+                  <option value="sale">Продажи</option>
+                  <option value="expense">Расходы</option>
+                  <option value="collection">Инкассации</option>
+                  <option value="reversal">Отмены</option>
+                </select>
+              </label>
               <HistoryView
                 items={operations}
                 onReverse={async (item) => {
@@ -623,6 +649,11 @@ export default function App() {
                   }
                 }}
               />
+              {hasMoreOperations && (
+                <button className="loadMoreButton" onClick={() => void loadMoreOperations()}>
+                  Загрузить ещё
+                </button>
+              )}
             </>
           ) : (
             <ReportsView />

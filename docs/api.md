@@ -12,7 +12,8 @@
 - `POST /api/v1/sales` — продажа.
 - `POST /api/v1/expenses` — расход.
 - `POST /api/v1/collections` — инкассация.
-- `GET /api/v1/operations` — история операций.
+- `GET /api/v1/operations` — история операций с `limit`, `offset`,
+  `operation_type`, `date_from` и `date_to`.
 - `POST /api/v1/operations/{id}/reversal` — компенсирующая отмена.
 - `GET /api/v1/reports/period` — отчёт владельца за период.
 - `GET /api/v1/reports/period.csv` — UTF-8 CSV-выгрузка отчёта.

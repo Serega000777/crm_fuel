@@ -23,6 +23,9 @@ concurrent idempotency and balanced ledgers.
 Added owner-only period reports and CSV export based on ledger entries, including
 reversal-aware revenue, COGS, expenses, profit, cash flow and fuel volumes.
 
+Added paginated operation history with server-side operation type/date filters
+and incremental loading in the Mini App.
+
 ## In progress
 Production-readiness review in Draft PR.
 
@@ -34,8 +37,7 @@ Deployment, production-scale load test, restore rehearsal, Telegram Mini App E2E
 and complete employee/RBAC management.
 
 ## Known limitations
-History currently uses the latest 50 operations. A production-scale load test and
-restore rehearsal on the target host remain.
+A production-scale load test and restore rehearsal on the target host remain.
 
 ## Owner decisions
 Target repository is `Serega000777/crm_fuel`; initial fuels are configurable records.

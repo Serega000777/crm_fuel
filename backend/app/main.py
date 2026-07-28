@@ -1,7 +1,7 @@
 import csv
 import io
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.auth import current_user
 from app.config import get_settings
 from app.db import Base, engine, get_db
-from app.models import Fuel, Operation, Role
+from app.models import Fuel, Operation, OperationType, Role
 from app.rate_limit import RedisRateLimiter
 from app.schemas import (
     CollectionIn,
@@ -205,16 +205,40 @@ def reverse_operation(
 @app.get("/api/v1/operations", response_model=list[OperationOut])
 def list_operations(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
+    operation_type: OperationType | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     user_id: int = Depends(current_user),
     db: Session = Depends(get_db),
 ):
     user = require_roles(db, user_id, Role.owner, Role.operator)
+    if date_from and date_to and date_to < date_from:
+        raise HTTPException(422, "date_to must not be earlier than date_from")
     query = select(Operation)
     if user.role == Role.operator:
         query = query.where(Operation.created_by == user.id)
+    if operation_type:
+        query = query.where(Operation.type == operation_type)
+    if date_from:
+        query = query.where(
+            Operation.created_at
+            >= datetime.combine(date_from, time.min, tzinfo=UTC)
+        )
+    if date_to:
+        query = query.where(
+            Operation.created_at
+            < datetime.combine(
+                date_to + timedelta(days=1),
+                time.min,
+                tzinfo=UTC,
+            )
+        )
     return list(
         db.scalars(
-            query.order_by(Operation.created_at.desc()).limit(limit)
+            query.order_by(Operation.created_at.desc(), Operation.id.desc())
+            .offset(offset)
+            .limit(limit)
         )
     )
 

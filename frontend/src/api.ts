@@ -120,7 +120,12 @@ export const api = {
       headers: { "Idempotency-Key": crypto.randomUUID() },
       body: JSON.stringify(payload),
     }),
-  operations: () => request<Operation[]>("/api/v1/operations"),
+  operations: (offset = 0, operationType = "") =>
+    request<Operation[]>(
+      `/api/v1/operations?limit=50&offset=${offset}${
+        operationType ? `&operation_type=${encodeURIComponent(operationType)}` : ""
+      }`,
+    ),
   report: (dateFrom: string, dateTo: string) =>
     request<PeriodReport>(
       `/api/v1/reports/period?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`,

@@ -278,3 +278,44 @@ def test_period_report_and_csv_export(client):
     assert exported.status_code == 200
     assert exported.content.startswith(b"\xef\xbb\xbfmetric,value")
     assert "attachment;" in exported.headers["content-disposition"]
+
+
+def test_operation_history_pagination_and_filter(client):
+    headers = {"X-Dev-User": "1"}
+    fuel = client.get("/api/v1/fuels", headers=headers).json()[0]
+    client.post(
+        "/api/v1/purchases",
+        json={
+            "fuel_id": fuel["id"],
+            "liters": "10",
+            "unit_price_kopecks": 4000,
+            "payment_method": "transfer",
+        },
+        headers={**headers, "Idempotency-Key": "history-purchase"},
+    )
+    client.patch(
+        f"/api/v1/fuels/{fuel['id']}/price",
+        json={"sale_price_kopecks": 6000},
+        headers=headers,
+    )
+    client.post(
+        "/api/v1/sales",
+        json={"fuel_id": fuel["id"], "liters": "1", "payment_method": "cash"},
+        headers={**headers, "Idempotency-Key": "history-sale"},
+    )
+
+    first = client.get(
+        "/api/v1/operations", params={"limit": 1, "offset": 0}, headers=headers
+    ).json()
+    second = client.get(
+        "/api/v1/operations", params={"limit": 1, "offset": 1}, headers=headers
+    ).json()
+    assert len(first) == len(second) == 1
+    assert first[0]["id"] != second[0]["id"]
+    sales = client.get(
+        "/api/v1/operations",
+        params={"operation_type": "sale"},
+        headers=headers,
+    ).json()
+    assert len(sales) == 1
+    assert sales[0]["type"] == "sale"

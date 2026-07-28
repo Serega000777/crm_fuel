@@ -254,3 +254,30 @@
 .exportButton svg {
   width: 18px;
 }
+.operationFilter {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.operationFilter select {
+  background: #111827;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  color: #f8fafc;
+  display: block;
+  margin-top: 5px;
+  padding: 10px;
+  width: 100%;
+}
+.loadMoreButton {
+  background: #172554;
+  border: 1px solid #1d4ed8;
+  border-radius: 12px;
+  color: #bfdbfe;
+  font-weight: 800;
+  margin: 12px 0 96px;
+  padding: 12px;
+  width: 100%;
+}
