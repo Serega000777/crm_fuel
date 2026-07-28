@@ -1,0 +1,70 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-crm_fuel}
+      POSTGRES_USER: ${POSTGRES_USER:-crm_fuel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crm_fuel}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm_fuel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backup:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-crm_fuel}
+      POSTGRES_USER: ${POSTGRES_USER:-crm_fuel}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-crm_fuel}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ./ops/backup:/opt/backup:ro
+      - postgres_backups:/backups
+    command: ["/bin/sh", "/opt/backup/run.sh"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    env_file:
+      - .env.example
+      - path: .env
+        required: false
+    ports: ["8000:8000"]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  frontend:
+    build: ./frontend
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports: ["5173:8080"]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp", "/var/cache/nginx", "/var/run"]
+    depends_on: [backend]
+
+volumes:
+  postgres_data:
+  postgres_backups:
