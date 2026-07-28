@@ -560,6 +560,70 @@ def period_report(db: Session, date_from: date, date_to: date, user_id: int) -> 
     operations_count = int(
         db.scalar(select(func.count()).select_from(Operation).where(*period_filter)) or 0
     )
+    fuel_details = []
+    for fuel in db.scalars(select(Fuel).order_by(Fuel.display_order)):
+        fuel_operations = (
+            *period_filter,
+            Operation.fuel_id == fuel.id,
+        )
+        fuel_revenue = int(
+            db.scalar(
+                select(func.coalesce(func.sum(Operation.total_kopecks), 0)).where(
+                    *fuel_operations,
+                    (Operation.type == OperationType.sale)
+                    | (
+                        (Operation.type == OperationType.reversal)
+                        & Operation.reversal_of_id.in_(sale_ids)
+                    ),
+                )
+            )
+            or 0
+        )
+        fuel_cogs = int(
+            db.scalar(
+                select(func.coalesce(func.sum(Operation.cost_kopecks), 0)).where(
+                    *fuel_operations,
+                    (Operation.type == OperationType.sale)
+                    | (
+                        (Operation.type == OperationType.reversal)
+                        & Operation.reversal_of_id.in_(sale_ids)
+                    ),
+                )
+            )
+            or 0
+        )
+        fuel_purchased = db.scalar(
+            select(func.coalesce(func.sum(Operation.liters), 0)).where(
+                *fuel_operations,
+                (Operation.type == OperationType.purchase)
+                | (
+                    (Operation.type == OperationType.reversal)
+                    & Operation.reversal_of_id.in_(purchase_ids)
+                ),
+            )
+        ) or Decimal(0)
+        fuel_sold = db.scalar(
+            select(func.coalesce(func.sum(Operation.liters), 0)).where(
+                *fuel_operations,
+                (Operation.type == OperationType.sale)
+                | (
+                    (Operation.type == OperationType.reversal)
+                    & Operation.reversal_of_id.in_(sale_ids)
+                ),
+            )
+        ) or Decimal(0)
+        if fuel_purchased or fuel_sold or fuel_revenue or fuel_cogs:
+            fuel_details.append(
+                {
+                    "fuel_id": fuel.id,
+                    "fuel_name": fuel.name,
+                    "purchased_liters": fuel_purchased,
+                    "sold_liters": fuel_sold,
+                    "revenue_kopecks": fuel_revenue,
+                    "cogs_kopecks": fuel_cogs,
+                    "gross_profit_kopecks": fuel_revenue - fuel_cogs,
+                }
+            )
     return {
         "date_from": date_from,
         "date_to": date_to,
@@ -572,4 +636,5 @@ def period_report(db: Session, date_from: date, date_to: date, user_id: int) -> 
         "purchased_liters": purchased,
         "sold_liters": sold,
         "operations_count": operations_count,
+        "fuel_details": fuel_details,
     }

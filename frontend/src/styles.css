@@ -147,6 +147,16 @@ header p {
   display: flex;
   gap: 6px;
 }
+.stockWarning {
+  background: #451a03;
+  border: 1px solid #b45309;
+  border-radius: 10px;
+  color: #fde68a;
+  font-size: 11px;
+  font-weight: 800;
+  margin: 10px 0;
+  padding: 9px;
+}
 .fuelName {
   gap: 12px;
 }

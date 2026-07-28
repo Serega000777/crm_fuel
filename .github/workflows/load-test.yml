@@ -1,0 +1,27 @@
+name: Read-only Load Test
+on:
+  workflow_dispatch:
+    inputs:
+      total_requests:
+        description: Total number of requests
+        required: true
+        default: "5000"
+      concurrency:
+        description: Parallel workers (maximum 500)
+        required: true
+        default: "50"
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python ops/load/read_load.py
+        env:
+          BASE_URL: ${{ vars.API_URL }}
+          AUTHORIZATION: ${{ secrets.LOAD_TEST_AUTHORIZATION }}
+          TOTAL_REQUESTS: ${{ inputs.total_requests }}
+          CONCURRENCY: ${{ inputs.concurrency }}
+          MAX_ERROR_RATE: "0.01"
+          MAX_P95_MS: "1000"

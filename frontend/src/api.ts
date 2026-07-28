@@ -58,6 +58,15 @@ export type PeriodReport = {
   purchased_liters: string;
   sold_liters: string;
   operations_count: number;
+  fuel_details: {
+    fuel_id: string;
+    fuel_name: string;
+    purchased_liters: string;
+    sold_liters: string;
+    revenue_kopecks: number;
+    cogs_kopecks: number;
+    gross_profit_kopecks: number;
+  }[];
 };
 const base = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const initData = window.Telegram?.WebApp?.initData;
@@ -90,6 +99,11 @@ export const api = {
     request<Fuel>(`/api/v1/fuels/${id}/price`, {
       method: "PATCH",
       body: JSON.stringify({ sale_price_kopecks: value }),
+    }),
+  minimumStock: (id: string, value: string) =>
+    request<Fuel>(`/api/v1/fuels/${id}/minimum-stock`, {
+      method: "PATCH",
+      body: JSON.stringify({ minimum_stock_liters: value }),
     }),
   purchase: (payload: object) =>
     request("/api/v1/purchases", {

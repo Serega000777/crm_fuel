@@ -23,5 +23,10 @@ CI запускает PostgreSQL 16, применяет все миграции 
 `tests/postgres_concurrency.py` с отдельными соединениями: overselling,
 параллельная идемпотентность и баланс ledger.
 
+Infrastructure job выполняет полный backup/restore rehearsal с контрольной
+записью. Ручной `Read-only Load Test` посылает по умолчанию 5000 запросов с 50
+параллельными workers и проверяет error rate ≤ 1% и p95 ≤ 1000 мс. Для него
+нужны `API_URL` и `LOAD_TEST_AUTHORIZATION` после появления целевого сервера.
+
 Команды: `pytest`, `ruff check .`, `mypy app`, `pip-audit`,
 `npm run lint`, `npm run build`, `npm audit`.

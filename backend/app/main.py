@@ -21,6 +21,7 @@ from app.schemas import (
     ExpenseIn,
     FuelOut,
     InventoryAdjustmentIn,
+    MinimumStockIn,
     OperationOut,
     PeriodReportOut,
     PriceIn,
@@ -140,6 +141,22 @@ def set_price(
     if not fuel:
         raise HTTPException(404, "Fuel not found")
     fuel.sale_price_kopecks = data.sale_price_kopecks
+    db.commit()
+    return fuel
+
+
+@app.patch("/api/v1/fuels/{fuel_id}/minimum-stock", response_model=FuelOut)
+def set_minimum_stock(
+    fuel_id: str,
+    data: MinimumStockIn,
+    user_id: int = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    require_roles(db, user_id, Role.owner)
+    fuel = db.get(Fuel, fuel_id)
+    if not fuel:
+        raise HTTPException(404, "Fuel not found")
+    fuel.minimum_stock_liters = data.minimum_stock_liters
     db.commit()
     return fuel
 
@@ -277,7 +294,23 @@ def export_period_report(
     writer = csv.writer(output)
     writer.writerow(["metric", "value"])
     for key, value in report.items():
+        if key == "fuel_details":
+            continue
         writer.writerow([key, value])
+    writer.writerow([])
+    writer.writerow(
+        [
+            "fuel_id",
+            "fuel_name",
+            "purchased_liters",
+            "sold_liters",
+            "revenue_kopecks",
+            "cogs_kopecks",
+            "gross_profit_kopecks",
+        ]
+    )
+    for item in report["fuel_details"]:
+        writer.writerow(item.values())
     content = "\ufeff" + output.getvalue()
     filename = f"crm-fuel-{date_from.isoformat()}-{date_to.isoformat()}.csv"
     return StreamingResponse(

@@ -43,6 +43,10 @@ class PriceIn(BaseModel):
     sale_price_kopecks: int = Field(gt=0)
 
 
+class MinimumStockIn(BaseModel):
+    minimum_stock_liters: Decimal = Field(ge=0, decimal_places=3)
+
+
 class OperationOut(BaseModel):
     id: str
     type: str
@@ -111,6 +115,16 @@ class PurchaseAnalysisOut(BaseModel):
     advisory: PurchaseAdvisory
 
 
+class FuelPeriodReportOut(BaseModel):
+    fuel_id: str
+    fuel_name: str
+    purchased_liters: Decimal
+    sold_liters: Decimal
+    revenue_kopecks: int
+    cogs_kopecks: int
+    gross_profit_kopecks: int
+
+
 class PeriodReportOut(BaseModel):
     date_from: date
     date_to: date
@@ -123,3 +137,4 @@ class PeriodReportOut(BaseModel):
     purchased_liters: Decimal
     sold_liters: Decimal
     operations_count: int
+    fuel_details: list[FuelPeriodReportOut]

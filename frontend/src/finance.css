@@ -254,6 +254,26 @@
 .exportButton svg {
   width: 18px;
 }
+.fuelReport {
+  margin-top: 18px;
+}
+.fuelReport article {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 12px;
+}
+.fuelReport span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.fuelReport b {
+  color: #86efac;
+  font-size: 12px;
+}
 .operationFilter {
   color: var(--muted);
   display: block;

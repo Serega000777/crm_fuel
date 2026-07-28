@@ -7,6 +7,7 @@
 - `GET /api/v1/dashboard` — финансовая сводка владельца.
 - `GET /api/v1/fuels` — список топлива.
 - `PATCH /api/v1/fuels/{id}/price` — изменение цены.
+- `PATCH /api/v1/fuels/{id}/minimum-stock` — порог предупреждения об остатке.
 - `POST /api/v1/purchases` — закупка.
 - `POST /api/v1/purchases/analyze` — локальный анализ себестоимости.
 - `POST /api/v1/sales` — продажа.

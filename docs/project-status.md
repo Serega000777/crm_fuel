@@ -29,6 +29,10 @@ and incremental loading in the Mini App.
 Added owner-only append-only inventory reconciliation with balanced ledger entries,
 RBAC, idempotency and reversal support.
 
+Added configurable minimum-stock warnings, per-fuel period report details and CSV,
+automated CI restore rehearsal, a real-bot Telegram E2E workflow and a read-only
+target load-test workflow.
+
 ## In progress
 Production-readiness review in Draft PR.
 
@@ -36,11 +40,11 @@ Production-readiness review in Draft PR.
 Production Telegram token, HTTPS URL and hosting access are intentionally not configured.
 
 ## Next tasks
-Deployment, production-scale load test, restore rehearsal, Telegram Mini App E2E
-and complete employee/RBAC management.
+Deployment and execution of the prepared Telegram/load workflows against the
+future HTTPS host. Employee management remains intentionally deferred.
 
 ## Known limitations
-A production-scale load test and restore rehearsal on the target host remain.
+Real-bot Telegram E2E and target load execution require bot/hosting credentials.
 
 ## Owner decisions
 Target repository is `Serega000777/crm_fuel`; initial fuels are configurable records.

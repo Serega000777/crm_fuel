@@ -53,3 +53,15 @@ jobs:
       - run: sh -n ops/backup/backup.sh
       - run: sh -n ops/backup/run.sh
       - run: sh -n ops/backup/restore.sh
+      - run: sh -n ops/backup/rehearse.sh
+      - run: python -m py_compile ops/telegram/e2e.py ops/load/read_load.py
+      - run: docker compose up -d postgres
+      - run: >-
+          docker compose exec -T postgres psql -U crm_fuel -d crm_fuel
+          -c "CREATE TABLE backup_rehearsal (marker text NOT NULL);
+          INSERT INTO backup_rehearsal VALUES ('crm-fuel-backup-ok');"
+      - run: docker compose run --rm backup /bin/sh /opt/backup/backup.sh
+      - run: docker compose exec -T postgres createdb -U crm_fuel crm_fuel_restore
+      - run: >-
+          docker compose run --rm -e RESTORE_DATABASE=crm_fuel_restore
+          backup /bin/sh /opt/backup/rehearse.sh

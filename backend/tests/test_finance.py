@@ -273,10 +273,18 @@ def test_period_report_and_csv_export(client):
     assert report["purchased_liters"] == "20.000"
     assert report["sold_liters"] == "10.000"
     assert report["operations_count"] == 3
+    assert len(report["fuel_details"]) == 1
+    fuel_report = report["fuel_details"][0]
+    assert fuel_report["fuel_id"] == fuel["id"]
+    assert fuel_report["sold_liters"] == "10.000"
+    assert fuel_report["revenue_kopecks"] == 60000
+    assert fuel_report["cogs_kopecks"] == 40000
+    assert fuel_report["gross_profit_kopecks"] == 20000
 
     exported = client.get("/api/v1/reports/period.csv", params=params, headers=headers)
     assert exported.status_code == 200
     assert exported.content.startswith(b"\xef\xbb\xbfmetric,value")
+    assert b"fuel_id,fuel_name,purchased_liters" in exported.content
     assert "attachment;" in exported.headers["content-disposition"]
 
 
@@ -374,3 +382,15 @@ def test_inventory_adjustment_is_append_only_and_reversible(client):
         ]
         == "10.000"
     )
+
+
+def test_owner_can_configure_minimum_stock(client):
+    headers = {"X-Dev-User": "1"}
+    fuel = client.get("/api/v1/fuels", headers=headers).json()[0]
+    response = client.patch(
+        f"/api/v1/fuels/{fuel['id']}/minimum-stock",
+        json={"minimum_stock_liters": "25.500"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["minimum_stock_liters"] == "25.500"

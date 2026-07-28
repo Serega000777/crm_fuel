@@ -25,7 +25,7 @@ import {
 
 const rub = (value: number) =>
   new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB" }).format(value / 100);
-type FuelMode = "purchase" | "sale" | "price" | "adjustment";
+type FuelMode = "purchase" | "sale" | "price" | "adjustment" | "minimum";
 type CashMode = "expense" | "collection";
 
 function ReportsView() {
@@ -102,6 +102,20 @@ function ReportsView() {
               <strong>{Number(report.sold_liters).toLocaleString("ru-RU")} л</strong>
             </article>
           </div>
+          {!!report.fuel_details.length && (
+            <div className="fuelReport">
+              <h3>По видам топлива</h3>
+              {report.fuel_details.map((fuel) => (
+                <article key={fuel.fuel_id}>
+                  <strong>{fuel.fuel_name}</strong>
+                  <span>Продано: {Number(fuel.sold_liters).toLocaleString("ru-RU")} л</span>
+                  <span>Выручка: {rub(fuel.revenue_kopecks)}</span>
+                  <span>Себестоимость: {rub(fuel.cogs_kopecks)}</span>
+                  <b>Валовая прибыль: {rub(fuel.gross_profit_kopecks)}</b>
+                </article>
+              ))}
+            </div>
+          )}
           <button
             className="exportButton"
             onClick={() =>
@@ -149,7 +163,9 @@ function FuelSheet({
         ? "Новая продажа"
         : mode === "adjustment"
           ? "Инвентаризация"
-          : "Цена продажи";
+          : mode === "minimum"
+            ? "Минимальный остаток"
+            : "Цена продажи";
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -167,12 +183,13 @@ function FuelSheet({
         });
       else if (mode === "sale")
         await api.sale({ fuel_id: fuel.id, liters, payment_method: payment });
-      else
+      else if (mode === "adjustment")
         await api.adjustInventory({
           fuel_id: fuel.id,
           actual_stock_liters: liters,
           reason,
         });
+      else await api.minimumStock(fuel.id, liters);
       onDone();
       onClose();
     } catch (e) {
@@ -214,11 +231,15 @@ function FuelSheet({
         </div>
         {mode !== "price" && (
           <label>
-            {mode === "adjustment" ? "Фактический остаток, л" : "Количество, л"}
+            {mode === "adjustment"
+              ? "Фактический остаток, л"
+              : mode === "minimum"
+                ? "Порог предупреждения, л"
+                : "Количество, л"}
             <input
               inputMode="decimal"
               required
-              min={mode === "adjustment" ? "0" : ".001"}
+              min={mode === "adjustment" || mode === "minimum" ? "0" : ".001"}
               step=".001"
               value={liters}
               onChange={(e) => {
@@ -630,6 +651,12 @@ export default function App() {
                         >
                           Замер
                         </button>
+                        <button
+                          className="priceBtn"
+                          onClick={() => setActive({ mode: "minimum", fuel: f })}
+                        >
+                          Мин.
+                        </button>
                       </div>
                     </div>
                     <div className="stock">
@@ -638,6 +665,13 @@ export default function App() {
                         {Number(f.stock_liters).toLocaleString("ru-RU")} <small>л</small>
                       </strong>
                     </div>
+                    {Number(f.minimum_stock_liters) > 0 &&
+                      Number(f.stock_liters) <= Number(f.minimum_stock_liters) && (
+                        <div className="stockWarning">
+                          Низкий остаток: порог{" "}
+                          {Number(f.minimum_stock_liters).toLocaleString("ru-RU")} л
+                        </div>
+                      )}
                     <div className="actions">
                       <button onClick={() => setActive({ mode: "purchase", fuel: f })}>
                         <ArrowDownToLine /> Закупка
