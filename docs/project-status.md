@@ -49,7 +49,7 @@ Target repository is `Serega000777/crm_fuel`; initial fuels are configurable rec
 `codex/fuel-crm-foundation`
 
 ## Latest commit
-Pending inventory reconciliation commit.
+`5216d79` — Add append-only inventory reconciliation.
 
 ## Latest PR
 Draft PR #1: https://github.com/Serega000777/crm_fuel/pull/1
